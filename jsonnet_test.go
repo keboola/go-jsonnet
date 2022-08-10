@@ -401,6 +401,8 @@ func TestNotifier_OnGeneratedValue(t *testing.T) {
 	notifier := &testNotifier{}
 	vm := MakeVM()
 	vm.Notifier(notifier)
+
+	// Function "decorate" wraps string value with "~".
 	vm.NativeFunction(&NativeFunction{
 		Name:   `decorate`,
 		Params: ast.Identifiers{"str"},
@@ -409,12 +411,29 @@ func TestNotifier_OnGeneratedValue(t *testing.T) {
 		},
 	})
 
-	// Jsonnet code
+	// Function "keyValueObject" converts key and value to object.
+	vm.NativeFunction(&NativeFunction{
+		Name:   `keyValueObject`,
+		Params: ast.Identifiers{"key", "value"},
+		Func: func(params []interface{}) (interface{}, error) {
+			return map[string]interface{}{params[0].(string): params[1].(string)}, nil
+		},
+	})
+
+	// Input Jsonnet code.
 	code := `
 local Person(name='Alice') = {
   name: if true then std.native('decorate')(name) else null,
 };
 local Do() = {
+  myObject: {
+    mergedObject: 
+		std.native('keyValueObject')("A", "AAA") +
+		std.native('keyValueObject')("B", "BBB") +
+		{
+			"sub": std.native('keyValueObject')("C", "CCC")
+		}
+  },
   person1: Person(),
   person2: Person('Bob'),
   other: [Person('Foo'), Person('Bar')],
@@ -422,8 +441,17 @@ local Do() = {
 Do()
 `
 
-	// Output Json
+	// Expected output Json.
 	expected := `{
+   "myObject": {
+      "mergedObject": {
+         "A": "AAA",
+         "B": "BBB",
+         "sub": {
+            "C": "CCC"
+         }
+      }
+   },
    "other": [
       {
          "name": "~Foo~"
@@ -441,14 +469,113 @@ Do()
 }
 `
 
-	// Notified values
+	// Notified values:
 	expectedNotifications := []generatedValue{
-		{fnName: "decorate", args: []interface{}{"Foo"}, value: "~Foo~", steps: []interface{}{ObjectFieldStep{Field: "other"}, ArrayIndexStep{Index: 0}, ObjectFieldStep{Field: "name"}}},
-		{fnName: "decorate", args: []interface{}{"Bar"}, value: "~Bar~", steps: []interface{}{ObjectFieldStep{Field: "other"}, ArrayIndexStep{Index: 1}, ObjectFieldStep{Field: "name"}}},
-		{fnName: "decorate", args: []interface{}{"Alice"}, value: "~Alice~", steps: []interface{}{ObjectFieldStep{Field: "person1"}, ObjectFieldStep{Field: "name"}}},
-		{fnName: "decorate", args: []interface{}{"Bob"}, value: "~Bob~", steps: []interface{}{ObjectFieldStep{Field: "person2"}, ObjectFieldStep{Field: "name"}}},
+		// Objects merging
+		{
+			fnName:  "keyValueObject",
+			args:    []interface{}{"C", "CCC"},
+			partial: false,
+			partialValue: map[string]interface{}{
+				"C": "CCC",
+			},
+			finalValue: map[string]interface{}{
+				"C": "CCC",
+			},
+			steps: []interface{}{
+				ObjectFieldStep{Field: "myObject"},
+				ObjectFieldStep{Field: "mergedObject"},
+				ObjectFieldStep{Field: "sub"},
+			},
+		},
+		{
+			fnName:  "keyValueObject",
+			args:    []interface{}{"A", "AAA"},
+			partial: true,
+			partialValue: map[string]interface{}{
+				"A": "AAA",
+			},
+			finalValue: map[string]interface{}{
+				"A": "AAA",
+				"B": "BBB",
+				"sub": map[string]interface{}{
+					"C": "CCC",
+				},
+			},
+			steps: []interface{}{
+				ObjectFieldStep{Field: "myObject"},
+				ObjectFieldStep{Field: "mergedObject"},
+			},
+		},
+		{
+			fnName:  "keyValueObject",
+			args:    []interface{}{"B", "BBB"},
+			partial: true,
+			partialValue: map[string]interface{}{
+				"B": "BBB",
+			},
+			finalValue: map[string]interface{}{
+				"A": "AAA",
+				"B": "BBB",
+				"sub": map[string]interface{}{
+					"C": "CCC",
+				},
+			},
+			steps: []interface{}{
+				ObjectFieldStep{Field: "myObject"},
+				ObjectFieldStep{Field: "mergedObject"},
+			},
+		},
+		// Simple usage
+		{
+			fnName:       "decorate",
+			args:         []interface{}{"Foo"},
+			partial:      false,
+			partialValue: "~Foo~",
+			finalValue:   "~Foo~",
+			steps: []interface{}{
+				ObjectFieldStep{Field: "other"},
+				ArrayIndexStep{Index: 0},
+				ObjectFieldStep{Field: "name"},
+			},
+		},
+		{
+			fnName:       "decorate",
+			args:         []interface{}{"Bar"},
+			partial:      false,
+			partialValue: "~Bar~",
+			finalValue:   "~Bar~",
+			steps: []interface{}{
+				ObjectFieldStep{Field: "other"},
+				ArrayIndexStep{Index: 1},
+				ObjectFieldStep{Field: "name"},
+			},
+		},
+		{
+			fnName:       "decorate",
+			args:         []interface{}{"Alice"},
+			partial:      false,
+			partialValue: "~Alice~",
+			finalValue:   "~Alice~",
+			steps: []interface{}{
+				ObjectFieldStep{Field: "person1"},
+				ObjectFieldStep{Field: "name"},
+			},
+		},
+		{
+			fnName:       "decorate",
+			args:         []interface{}{"Bob"},
+			partial:      false,
+			partialValue: "~Bob~",
+			finalValue:   "~Bob~",
+			steps: []interface{}{
+				ObjectFieldStep{Field: "person2"},
+				ObjectFieldStep{Field: "name"},
+			},
+		},
 	}
 
+	// Evaluate and assert
 	actual, err := vm.EvaluateAnonymousSnippet("file", code)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
@@ -460,17 +587,21 @@ type testNotifier struct {
 }
 
 type generatedValue struct {
-	fnName string
-	args   []interface{}
-	value  interface{}
-	steps  []interface{}
+	fnName       string
+	args         []interface{}
+	partial      bool
+	partialValue interface{}
+	finalValue   interface{}
+	steps        []interface{}
 }
 
-func (n *testNotifier) OnGeneratedValue(fnName string, args []interface{}, value interface{}, steps []interface{}) {
+func (n *testNotifier) OnGeneratedValue(fnName string, args []interface{}, partial bool, partialValue, finalValue interface{}, steps []interface{}) {
 	n.values = append(n.values, generatedValue{
-		fnName: fnName,
-		args:   args,
-		value:  value,
-		steps:  steps,
+		fnName:       fnName,
+		args:         args,
+		partial:      partial,
+		partialValue: partialValue,
+		finalValue:   finalValue,
+		steps:        steps,
 	})
 }
