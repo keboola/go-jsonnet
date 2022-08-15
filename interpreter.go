@@ -675,18 +675,38 @@ func (i *interpreter) manifestJSON(v value) (out interface{}, err error) {
 	defer i.stack.popIfExists(stackSize)
 	defer func() {
 		// Notify on generated value
-		if i.notifier != nil && err == nil && v.generatedByNativeFn() {
+		if functions := v.generatedByNativeFunctions(); len(functions) > 0 && i.notifier != nil && err == nil {
+			// Generate steps/path to the value from root level
 			var steps []interface{}
 			for _, frame := range i.stack.stack {
-				// Skip pseudo-step (not ObjectFieldStep/ArrayIndexStep)
+				// Skip empty/pseudo step (not ObjectFieldStep/ArrayIndexStep)
 				if frame.trace.step != nil {
 					steps = append(steps, frame.trace.step)
 				}
 			}
-			i.notifier.OnGeneratedValue(v.nativeFunction().Name, v.nativeFunctionArgs(), out, steps)
+
+			// Notify about all values generated from a native function
+			for _, fn := range functions {
+				var partialOut interface{}
+				if fn.partial {
+					// The value has been created by merging several values - get partial value.
+					partialOut, err = i.doManifestJSON(fn.out)
+					if err != nil {
+						return
+					}
+				} else {
+					// The value has been created directly from the native function - without modification.
+					partialOut = out
+				}
+				i.notifier.OnGeneratedValue(fn.fn.Name, fn.args, fn.partial, partialOut, out, steps)
+			}
 		}
 	}()
 
+	return i.doManifestJSON(v)
+}
+
+func (i *interpreter) doManifestJSON(v value) (out interface{}, err error) {
 	switch v := v.(type) {
 
 	case *valueBoolean:

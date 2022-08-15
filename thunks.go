@@ -18,6 +18,7 @@ package jsonnet
 
 import (
 	"fmt"
+
 	"github.com/google/go-jsonnet/ast"
 )
 
@@ -288,7 +289,7 @@ func (native *NativeFunction) evalCall(arguments callArguments, i *interpreter) 
 	}
 	v, err := jsonToValue(i, resultJSON)
 	if err == nil {
-		v.setNativeFunction(native, nativeArgs)
+		v.markGeneratedByNativeFunction(native, nativeArgs, v, false)
 	}
 	return v, err
 }

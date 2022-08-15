@@ -1,11 +1,7 @@
 name: ci
 on:
   pull_request:
-    branches:
-      - master
   push:
-    branches:
-      - master
 jobs:
   test:
     name: Test go${{ matrix.goVersion}}.x ${{ matrix.goArch }}
