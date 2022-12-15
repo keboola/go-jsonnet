@@ -36,6 +36,7 @@ func prepareStdlib(g *typeGraph) {
 		"objectValuesAll": g.newSimpleFuncType(anyArrayType, "o"),
 		"prune":           g.newSimpleFuncType(anyObjectType, "a"),
 		"mapWithKey":      g.newSimpleFuncType(anyObjectType, "func", "obj"),
+		"get":             g.newFuncType(anyType, []ast.Parameter{required("o"), required("f"), optional("default"), optional("inc_hidden")}),
 
 		// isSomething
 		"isArray":    g.newSimpleFuncType(boolType, "v"),
@@ -105,14 +106,15 @@ func prepareStdlib(g *typeGraph) {
 
 		// Manifestation
 
-		"manifestIni":        g.newSimpleFuncType(stringType, "ini"),
-		"manifestPython":     g.newSimpleFuncType(stringType, "v"),
-		"manifestPythonVars": g.newSimpleFuncType(stringType, "conf"),
-		"manifestTomlEx":     g.newSimpleFuncType(stringType, "value", "indent"),
-		"manifestJsonEx":     g.newSimpleFuncType(stringType, "value", "indent"),
-		"manifestYamlDoc":    g.newSimpleFuncType(stringType, "value"),
-		"manifestYamlStream": g.newSimpleFuncType(stringType, "value"),
-		"manifestXmlJsonml":  g.newSimpleFuncType(stringType, "value"),
+		"manifestIni":          g.newSimpleFuncType(stringType, "ini"),
+		"manifestPython":       g.newSimpleFuncType(stringType, "v"),
+		"manifestPythonVars":   g.newSimpleFuncType(stringType, "conf"),
+		"manifestTomlEx":       g.newSimpleFuncType(stringType, "value", "indent"),
+		"manifestJsonEx":       g.newSimpleFuncType(stringType, "value", "indent"),
+		"manifestJsonMinified": g.newSimpleFuncType(stringType, "value"),
+		"manifestYamlDoc":      g.newSimpleFuncType(stringType, "value"),
+		"manifestYamlStream":   g.newSimpleFuncType(stringType, "value"),
+		"manifestXmlJsonml":    g.newSimpleFuncType(stringType, "value"),
 
 		// Arrays
 

@@ -377,22 +377,22 @@ func (f *valueFunction) parameters() []namedParameter {
 }
 
 func checkArguments(i *interpreter, args callArguments, params []namedParameter) error {
-
-	numPassed := len(args.positional)
+	numPositional := len(args.positional)
+	numNamed := len(args.named)
 	maxExpected := len(params)
 
-	if numPassed > maxExpected {
-		return i.Error(fmt.Sprintf("function expected %v positional argument(s), but got %v", maxExpected, numPassed))
+	if numPositional > maxExpected {
+		return i.Error(fmt.Sprintf("function expected %v positional argument(s), but got %v", maxExpected, numPositional))
 	}
 
 	// Parameter names the function will accept.
-	accepted := make(map[ast.Identifier]bool)
+	accepted := make(map[ast.Identifier]bool, maxExpected)
 	for _, param := range params {
 		accepted[param.name] = true
 	}
 
 	// Parameter names the call will bind.
-	received := make(map[ast.Identifier]bool)
+	received := make(map[ast.Identifier]bool, numPositional+numNamed)
 	for i := range args.positional {
 		received[params[i].name] = true
 	}
@@ -420,8 +420,8 @@ func (f *valueFunction) getType() *valueType {
 }
 
 type namedParameter struct {
-	name       ast.Identifier
 	defaultArg ast.Node
+	name       ast.Identifier
 }
 
 type callArguments struct {
@@ -431,8 +431,8 @@ type callArguments struct {
 }
 
 type namedCallArgument struct {
-	name ast.Identifier
 	pv   *cachedThunk
+	name ast.Identifier
 }
 
 func args(xs ...*cachedThunk) callArguments {
@@ -548,9 +548,9 @@ type uncachedObject interface {
 }
 
 type objectLocal struct {
-	name ast.Identifier
 	// Locals may depend on self and super so they are unbound fields and not simply thunks
 	node ast.Node
+	name ast.Identifier
 }
 
 // simpleObject represents a flat object (no inheritance).
@@ -628,8 +628,8 @@ func makeValueSimpleObject(b bindingFrame, fields simpleObjectFieldMap, asserts 
 type simpleObjectFieldMap map[string]simpleObjectField
 
 type simpleObjectField struct {
-	hide  ast.ObjectFieldHide
 	field unboundField
+	hide  ast.ObjectFieldHide
 }
 
 // unboundField is a field that doesn't know yet in which object it is.
@@ -643,11 +643,11 @@ type unboundField interface {
 // Example:
 // (A + B) + C
 //
-//        +
-//       / \
-//      +   C
-//     / \
-//    A   B
+//	    +
+//	   / \
+//	  +   C
+//	 / \
+//	A   B
 //
 // It is possible to create an arbitrary binary tree.
 // Note however, that because + is associative the only thing that matters
@@ -655,7 +655,6 @@ type unboundField interface {
 //
 // This represenation allows us to implement "+" in O(1),
 // but requires going through the tree and trying subsequent leafs for field access.
-//
 type extendedObject struct {
 	left, right          uncachedObject
 	totalInheritanceSize int
@@ -714,7 +713,7 @@ func findField(curr uncachedObject, minSuperDepth int, f string) (bool, simpleOb
 }
 
 func prepareFieldUpvalues(sb selfBinding, upValues bindingFrame, locals []objectLocal) bindingFrame {
-	newUpValues := make(bindingFrame)
+	newUpValues := make(bindingFrame, len(upValues))
 	for k, v := range upValues {
 		newUpValues[k] = v
 	}

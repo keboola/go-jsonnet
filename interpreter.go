@@ -32,15 +32,14 @@ import (
 // TODO(sbarzowski) use it as a pointer in most places b/c it can sometimes be shared
 // for example it can be shared between array elements and function arguments
 type environment struct {
-	selfBinding selfBinding
-
 	// Bindings introduced in this frame. The way previous bindings are treated
 	// depends on the type of a frame.
 	// If cleanEnv == true then previous bindings are ignored (it's a clean
 	// environment with just the variables we have here).
 	// If cleanEnv == false then if this frame doesn't contain a binding
 	// previous bindings will be used.
-	upValues bindingFrame
+	upValues    bindingFrame
+	selfBinding selfBinding
 }
 
 func makeEnvironment(upValues bindingFrame, sb selfBinding) environment {
@@ -64,20 +63,20 @@ func (i *interpreter) getCurrentStackTrace() []traceFrame {
 }
 
 type callFrame struct {
+	// Tracing information about the place where it was called from.
+	trace traceElement
+
+	env environment
+
 	// True if it switches to a clean environment (function call or array element)
 	// False otherwise, e.g. for local
 	cleanEnv bool
-
-	// Tracing information about the place where it was called from.
-	trace traceElement
 
 	// Whether this frame can be removed from the stack when it doesn't affect
 	// the evaluation result, but in case of an error, it won't appear on the
 	// stack trace.
 	// It's used for tail call optimization.
 	trimmable bool
-
-	env environment
 }
 
 func dumpCallFrame(c *callFrame) string {
@@ -95,10 +94,10 @@ func dumpCallFrame(c *callFrame) string {
 }
 
 type callStack struct {
+	currentTrace traceElement
+	stack        []*callFrame
 	calls        int
 	limit        int
-	stack        []*callFrame
-	currentTrace traceElement
 }
 
 func dumpCallStack(c *callStack) string {
@@ -226,7 +225,7 @@ func (s *callStack) getCurrentEnv(ast ast.Node) environment {
 
 // Build a binding frame containing specified variables.
 func (s *callStack) capture(freeVars ast.Identifiers) bindingFrame {
-	env := make(bindingFrame)
+	env := make(bindingFrame, len(freeVars))
 	for _, fv := range freeVars {
 		env[fv] = s.lookUpVarOrPanic(fv)
 	}
@@ -242,11 +241,6 @@ func makeCallStack(limit int) callStack {
 
 // Keeps current execution context and evaluates things
 type interpreter struct {
-	// Current stack. It is used for:
-	// 1) Keeping environment (object we're in, variables)
-	// 2) Diagnostic information in case of failure
-	stack callStack
-
 	// External variables
 	extVars map[string]*cachedThunk
 
@@ -265,11 +259,16 @@ type interpreter struct {
 	traceOut io.Writer
 
 	notifier Notifier
+
+	// Current stack. It is used for:
+	// 1) Keeping environment (object we're in, variables)
+	// 2) Diagnostic information in case of failure
+	stack callStack
 }
 
 // Map union, b takes precedence when keys collide.
 func addBindings(a, b bindingFrame) bindingFrame {
-	result := make(bindingFrame)
+	result := make(bindingFrame, len(a))
 
 	for k, v := range a {
 		result[k] = v
@@ -394,7 +393,7 @@ func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
 
 	case *ast.DesugaredObject:
 		// Evaluate all the field names.  Check for null, dups, etc.
-		fields := make(simpleObjectFieldMap)
+		fields := make(simpleObjectFieldMap, len(node.Fields))
 		for _, field := range node.Fields {
 			fieldNameValue, err := i.evaluate(field.Name, nonTailCall)
 			if err != nil {
@@ -418,7 +417,7 @@ func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
 			if field.PlusSuper {
 				f = &plusSuperUnboundField{f}
 			}
-			fields[fieldName] = simpleObjectField{field.Hide, f}
+			fields[fieldName] = simpleObjectField{f, field.Hide}
 		}
 		var asserts []unboundField
 		for _, assert := range node.Asserts {
@@ -516,7 +515,7 @@ func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
 		return makeValueString(node.Value), nil
 
 	case *ast.Local:
-		vars := make(bindingFrame)
+		vars := make(bindingFrame, len(node.Binds))
 		bindEnv := i.stack.getCurrentEnv(a)
 		for _, bind := range node.Binds {
 			th := cachedThunk{env: &bindEnv, body: bind.Body}
@@ -762,7 +761,7 @@ func (i *interpreter) doManifestJSON(v value) (out interface{}, err error) {
 		}
 		i.stack.clearCurrentTrace()
 
-		result := make(map[string]interface{})
+		result := make(map[string]interface{}, len(fieldNames))
 
 		for _, fieldName := range fieldNames {
 			msg := ast.MakeLocationRangeMessage(fmt.Sprintf("Field %#v", fieldName))
@@ -1220,7 +1219,7 @@ func buildStdObject(i *interpreter) (*valueObject, error) {
 	}
 
 	for name, value := range builtinFields {
-		obj.fields[name] = simpleObjectField{ast.ObjectFieldHidden, value}
+		obj.fields[name] = simpleObjectField{value, ast.ObjectFieldHidden}
 	}
 	return objVal.(*valueObject), nil
 }
@@ -1270,7 +1269,7 @@ func prepareExtVars(i *interpreter, ext vmExtMap, kind string) map[string]*cache
 func buildObject(hide ast.ObjectFieldHide, fields map[string]value) *valueObject {
 	fieldMap := simpleObjectFieldMap{}
 	for name, v := range fields {
-		fieldMap[name] = simpleObjectField{hide, &readyValue{v}}
+		fieldMap[name] = simpleObjectField{&readyValue{v}, hide}
 	}
 	return makeValueSimpleObject(bindingFrame{}, fieldMap, nil, nil)
 }

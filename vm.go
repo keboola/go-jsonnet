@@ -36,7 +36,7 @@ import (
 
 // VM is the core interpreter and is the touchpoint used to parse and execute
 // Jsonnet.
-type VM struct {
+type VM struct { //nolint:govet
 	MaxStack       int
 	ext            vmExtMap
 	tla            vmExtMap
@@ -69,12 +69,12 @@ const (
 
 // External variable or top level argument provided before execution
 type vmExt struct {
-	// the kind of external variable that is specified.
-	kind extKind
-	// jsonnet code to evaluate (kind=extKindCode) or string to pass (kind=extKindVar)
-	value string
 	// the specified node for kind=extKindNode
 	node ast.Node
+	// jsonnet code to evaluate (kind=extKindCode) or string to pass (kind=extKindVar)
+	value string
+	// the kind of external variable that is specified.
+	kind extKind
 }
 
 type vmExtMap map[string]vmExt
@@ -209,7 +209,7 @@ const (
 )
 
 // version is the current gojsonnet's version
-const version = "v0.18.0"
+const version = "v0.19.1"
 
 // Evaluate evaluates a Jsonnet program given by an Abstract Syntax Tree
 // and returns serialized JSON as string.

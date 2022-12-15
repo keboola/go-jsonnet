@@ -21,6 +21,10 @@
     objectValuesAll: std.objectValuesAll(o={}),
     prune: std.prune(a={x: null, y: [null, "42"]}),
     mapWithKey: std.mapWithKey(func=function(key, value) 42, obj={a: 17}),
+    get: [
+        std.get(o={a:: 17}, f="a"),
+        std.get(o={a:: 17}, f="a", default=42, inc_hidden=false),
+    ],
 
     // isSomething
     isArray: std.isArray(v=[]),
@@ -95,6 +99,7 @@
     manifestPythonVars: std.manifestPythonVars(conf={a: {b: "c"}}),
     manifestTomlEx: std.manifestTomlEx(value={a: {b: "c"}}, indent=" "),
     manifestJsonEx: std.manifestJsonEx(value={a: {b: "c"}}, indent=" "),
+    manifestJsonMinified: std.manifestJsonMinified(value={a: {b: "c"}}),
     manifestYamlDoc: std.manifestYamlDoc(value={a: {b: "c"}}),
     manifestYamlStream: std.manifestYamlStream(value=[42, {a: {b: "c"}}]),
     manifestXmlJsonml:  std.manifestXmlJsonml(value=["blah", {a: 42}]),
