@@ -47,6 +47,7 @@ jobs:
           SKIP_PYTHON_BINDINGS_TESTS: ${{ matrix.SKIP_PYTHON_BINDINGS_TESTS }}
 
   bazel:
+    if: false # doesn't work in the forked repository
     name: bazel test
     runs-on: ubuntu-latest
     steps:
