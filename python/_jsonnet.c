@@ -23,8 +23,17 @@ limitations under the License.
 
 static char *jsonnet_str(struct JsonnetVm *vm, const char *str)
 {
-    char *out = jsonnet_realloc(vm, NULL, strlen(str) + 1);
-    memcpy(out, str, strlen(str) + 1);
+    size_t size = strlen(str) + 1;
+    char *out = jsonnet_realloc(vm, NULL, size);
+    memcpy(out, str, size);
+    return out;
+}
+
+static char *jsonnet_str_nonull(struct JsonnetVm *vm, const char *str, size_t *buflen)
+{
+    *buflen = strlen(str);
+    char *out = jsonnet_realloc(vm, NULL, *buflen);
+    memcpy(out, str, *buflen);
     return out;
 }
 
@@ -138,7 +147,6 @@ static struct JsonnetJsonValue *cpython_native_callback(
     void *ctx_, const struct JsonnetJsonValue * const *argv, int *succ)
 {
     const struct NativeCtx *ctx = ctx_;
-    int i;
 
     PyEval_RestoreThread(*ctx->py_thread);
 
@@ -147,7 +155,7 @@ static struct JsonnetJsonValue *cpython_native_callback(
 
     // Populate python function args.
     arglist = PyTuple_New(ctx->argc);
-    for (i = 0; i < ctx->argc; ++i) {
+    for (size_t i = 0; i < ctx->argc; ++i) {
         double d;
         const char *param_str = jsonnet_json_extract_string(ctx->vm, argv[i]);
         int param_null = jsonnet_json_extract_null(ctx->vm, argv[i]);
@@ -209,12 +217,12 @@ struct ImportCtx {
     PyObject *callback;
 };
 
-static char *cpython_import_callback(void *ctx_, const char *base, const char *rel,
-                                     char **found_here, int *success)
+static int cpython_import_callback(void *ctx_, const char *base, const char *rel,
+                                   char **found_here, char **buf, size_t *buflen)
 {
     const struct ImportCtx *ctx = ctx_;
     PyObject *arglist, *result;
-    char *out;
+    int success;
 
     PyEval_RestoreThread(*ctx->py_thread);
     arglist = Py_BuildValue("(s, s)", base, rel);
@@ -223,47 +231,49 @@ static char *cpython_import_callback(void *ctx_, const char *base, const char *r
 
     if (result == NULL) {
         // Get string from exception
-        char *out = jsonnet_str(ctx->vm, exc_to_str());
-        *success = 0;
+        *buf = jsonnet_str_nonull(ctx->vm, exc_to_str(), buflen);
         PyErr_Clear();
         *ctx->py_thread = PyEval_SaveThread();
-        return out;
+        return 1; // failure
     }
 
     if (!PyTuple_Check(result)) {
-        out = jsonnet_str(ctx->vm, "import_callback did not return a tuple");
-        *success = 0;
+        *buf = jsonnet_str_nonull(ctx->vm, "import_callback did not return a tuple", buflen);
+        success = 0;
     } else if (PyTuple_Size(result) != 2) {
-        out = jsonnet_str(ctx->vm, "import_callback did not return a tuple (size 2)");
-        *success = 0;
+        *buf = jsonnet_str_nonull(ctx->vm, "import_callback did not return a tuple (size 2)", buflen);
+        success = 0;
     } else {
         PyObject *file_name = PyTuple_GetItem(result, 0);
         PyObject *file_content = PyTuple_GetItem(result, 1);
 #if PY_MAJOR_VERSION >= 3
-        if (!PyUnicode_Check(file_name) || !PyUnicode_Check(file_content)) {
+        if (!PyUnicode_Check(file_name) || !PyBytes_Check(file_content)) {
 #else
-        if (!PyString_Check(file_name) || !PyString_Check(file_content)) {
+        if (!PyString_Check(file_name) || !PyBytes_Check(file_content)) {
 #endif
-            out = jsonnet_str(ctx->vm, "import_callback did not return a pair of strings");
-            *success = 0;
+            *buf = jsonnet_str_nonull(ctx->vm, "import_callback did not return (string, bytes). Since 0.19.0 imports should be returned as bytes instead of as a string.  You may want to call .encode() on your string.", buflen);
+            success = 0;
         } else {
+            char *content_buf;
+            ssize_t content_len;
 #if PY_MAJOR_VERSION >= 3
             const char *found_here_cstr = PyUnicode_AsUTF8(file_name);
-            const char *content_cstr = PyUnicode_AsUTF8(file_content);
 #else
             const char *found_here_cstr = PyString_AsString(file_name);
-            const char *content_cstr = PyString_AsString(file_content);
 #endif
+            PyBytes_AsStringAndSize(file_content, &content_buf, &content_len);
             *found_here = jsonnet_str(ctx->vm, found_here_cstr);
-            out = jsonnet_str(ctx->vm, content_cstr);
-            *success = 1;
+            *buflen = content_len;
+            *buf = jsonnet_realloc(ctx->vm, NULL, *buflen);
+            memcpy(*buf, content_buf, *buflen);
+            success = 1;
         }
     }
 
     Py_DECREF(result);
     *ctx->py_thread = PyEval_SaveThread();
 
-    return out;
+    return success ? 0 : 1;
 }
 
 static PyObject *handle_result(struct JsonnetVm *vm, char *out, int error)
@@ -459,7 +469,8 @@ static int handle_native_callbacks(struct JsonnetVm *vm, PyObject *native_callba
 static PyObject* evaluate_file(PyObject* self, PyObject* args, PyObject *keywds)
 {
     const char *filename;
-    char *out, *jpath_str;
+    char *out;
+    const char *jpath_str;
     unsigned max_stack = 500, gc_min_objects = 1000, max_trace = 20;
     double gc_growth_trigger = 2;
     int error;
@@ -548,7 +559,8 @@ static PyObject* evaluate_file(PyObject* self, PyObject* args, PyObject *keywds)
 static PyObject* evaluate_snippet(PyObject* self, PyObject* args, PyObject *keywds)
 {
     const char *filename, *src;
-    char *out, *jpath_str;
+    char *out;
+    const char *jpath_str;
     unsigned max_stack = 500, gc_min_objects = 1000, max_trace = 20;
     double gc_growth_trigger = 2;
     int error;
@@ -642,7 +654,7 @@ static PyMethodDef module_methods[] = {
 };
 
 #if PY_MAJOR_VERSION >= 3
-static struct PyModuleDef _gojsonnet =
+static struct PyModuleDef _module =
 {
     PyModuleDef_HEAD_INIT,
     "_gojsonnet",
@@ -653,11 +665,20 @@ static struct PyModuleDef _gojsonnet =
 
 PyMODINIT_FUNC PyInit__gojsonnet(void)
 {
-    return PyModule_Create(&_gojsonnet);
+    PyObject *module =  PyModule_Create(&_module);
+    PyObject *version_str = PyUnicode_FromString(LIB_JSONNET_VERSION);
+    if (PyModule_AddObject(module, "version", PyUnicode_FromString(LIB_JSONNET_VERSION)) < 0) {
+      Py_XDECREF(version_str);
+    }
+    return module;
 }
 #else
 PyMODINIT_FUNC init_gojsonnet(void)
 {
-    Py_InitModule3("_gojsonnet", module_methods, "A Python interface to Jsonnet.");
+    PyObject *module = Py_InitModule3("_gojsonnet", module_methods, "A Python interface to Jsonnet.");
+    PyObject *version_str = PyUnicode_FromString(LIB_JSONNET_VERSION);
+    if (PyModule_AddObject(module, "version", PyString_FromString(LIB_JSONNET_VERSION)) < 0) {
+      Py_XDECREF(version_str);
+    }
 }
 #endif

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"unsafe"
 
 	"github.com/google/go-jsonnet/ast"
@@ -70,6 +70,7 @@ func (c Contents) String() string {
 	return *(*string)(unsafe.Pointer(c.data))
 }
 
+// Data returns content bytes
 func (c Contents) Data() []byte {
 	return *c.data
 }
@@ -219,13 +220,13 @@ func (cache *importCache) importCode(importedFrom, importedPath string, i *inter
 
 // FileImporter imports data from the filesystem.
 type FileImporter struct {
-	JPaths  []string
 	fsCache map[string]*fsCacheEntry
+	JPaths  []string
 }
 
 type fsCacheEntry struct {
-	exists   bool
 	contents Contents
+	exists   bool
 }
 
 func (importer *FileImporter) tryPath(dir, importedPath string) (found bool, contents Contents, foundHere string, err error) {
@@ -233,10 +234,10 @@ func (importer *FileImporter) tryPath(dir, importedPath string) (found bool, con
 		importer.fsCache = make(map[string]*fsCacheEntry)
 	}
 	var absPath string
-	if path.IsAbs(importedPath) {
+	if filepath.IsAbs(importedPath) {
 		absPath = importedPath
 	} else {
-		absPath = path.Join(dir, importedPath)
+		absPath = filepath.Join(dir, importedPath)
 	}
 	var entry *fsCacheEntry
 	if cacheEntry, isCached := importer.fsCache[absPath]; isCached {
@@ -269,7 +270,7 @@ func (importer *FileImporter) Import(importedFrom, importedPath string) (content
 	// in the importer.
 	// We need to relativize the paths in the error formatter, so that the stack traces
 	// don't have ugly absolute paths (less readable and messy with golden tests).
-	dir, _ := path.Split(importedFrom)
+	dir, _ := filepath.Split(importedFrom)
 	found, content, foundHere, err := importer.tryPath(dir, importedPath)
 	if err != nil {
 		return Contents{}, "", err

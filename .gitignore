@@ -15,6 +15,7 @@ gojsonnet.egg-info/
 /bazel-out
 /bazel-testlogs
 /dumpstdlibast
+/vendor/
 
 # built binaries
 /jsonnet

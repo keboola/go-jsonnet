@@ -86,6 +86,10 @@
       4
    ],
    "format": "test blah 42",
+   "get": [
+      17,
+      42
+   ],
    "isArray": true,
    "isBoolean": true,
    "isFunction": true,
@@ -106,6 +110,7 @@
    ],
    "manifestIni": "a = 1\nb = 2\n[s1]\nx = 1\ny = 2\n",
    "manifestJsonEx": "{\n \"a\": {\n  \"b\": \"c\"\n }\n}",
+   "manifestJsonMinified": "{\"a\":{\"b\":\"c\"}}",
    "manifestPython": "{\"a\": {\"b\": \"c\"}}",
    "manifestPythonVars": "a = {\"b\": \"c\"}\n",
    "manifestTomlEx": "\n\n[a]\n b = \"c\"",
