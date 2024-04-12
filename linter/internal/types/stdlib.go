@@ -65,6 +65,7 @@ func prepareStdlib(g *typeGraph) {
 		"asin":     g.newSimpleFuncType(numberType, "x"),
 		"acos":     g.newSimpleFuncType(numberType, "x"),
 		"atan":     g.newSimpleFuncType(numberType, "x"),
+		"round":    g.newSimpleFuncType(numberType, "x"),
 
 		// Assertions and debugging
 		"assertEqual": g.newSimpleFuncType(boolType, "a", "b"),
@@ -88,6 +89,7 @@ func prepareStdlib(g *typeGraph) {
 		"asciiLower":  g.newSimpleFuncType(stringType, "str"),
 		"stringChars": g.newSimpleFuncType(stringType, "str"),
 		"format":      g.newSimpleFuncType(stringType, "str", "vals"),
+		"isEmpty":     g.newSimpleFuncType(boolType, "str"),
 		// TODO(sbarzowski) Fix when they match the documentation
 		"escapeStringBash":    g.newSimpleFuncType(stringType, "str_"),
 		"escapeStringDollars": g.newSimpleFuncType(stringType, "str_"),
@@ -137,6 +139,7 @@ func prepareStdlib(g *typeGraph) {
 		"flattenArrays": g.newSimpleFuncType(anyArrayType, "arrs"),
 		"sort":          g.newFuncType(anyArrayType, []ast.Parameter{required("arr"), optional("keyF")}),
 		"uniq":          g.newFuncType(anyArrayType, []ast.Parameter{required("arr"), optional("keyF")}),
+		"sum":           g.newSimpleFuncType(numberType, "arr"),
 
 		// Sets
 
@@ -170,6 +173,11 @@ func prepareStdlib(g *typeGraph) {
 		"mod":              g.newSimpleFuncType(stringOrNumber, "a", "b"),
 		"native":           g.newSimpleFuncType(anyFunctionType, "x"),
 		"$objectFlatMerge": g.newSimpleFuncType(anyObjectType, "x"),
+
+		// Boolean
+
+		"xor":	g.newSimpleFuncType(boolType, "x", "y"),
+		"xnor":	g.newSimpleFuncType(boolType, "x", "y"),
 	}
 
 	fieldContains := map[string][]placeholderID{}
