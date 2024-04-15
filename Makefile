@@ -13,11 +13,13 @@ install.dependencies:
 .PHONY: install.dependencies
 
 build.bazel:
-	bazel build //cmd/jsonnet
+	# doesn't work in the forked repository
+	# bazel build //cmd/jsonnet
 .PHONY: build.bazel
 
 _build.bazel.os:
-	bazel build --platforms=@io_bazel_rules_go//go/toolchain:$(OS)_amd64 //cmd/jsonnet
+    # doesn't work in the forked repository
+	# bazel build --platforms=@io_bazel_rules_go//go/toolchain:$(OS)_amd64 //cmd/jsonnet
 .PHONY: build.bazel.os
 
 build.bazel.linux : OS=linux
@@ -60,9 +62,11 @@ generate.stdlib:
 
 tidy:
 	go mod tidy
-	bazel run //:gazelle -- update-repos -from_file=go.mod -to_macro=bazel/deps.bzl%jsonnet_go_dependencies
+    # doesn't work in the forked repository
+	# bazel run //:gazelle -- update-repos -from_file=go.mod -to_macro=bazel/deps.bzl%jsonnet_go_dependencies
 .PHONY: tidy
 
 gazelle:
-	bazel run //:gazelle
+    # doesn't work in the forked repository
+	# bazel run //:gazelle
 .PHONY: gazelle
