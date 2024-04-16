@@ -1366,15 +1366,7 @@ func evaluateAux(i *interpreter, node ast.Node, tla vmExtMap) (value, error) {
 	return result, nil
 }
 
-// TODO(sbarzowski) this function takes far too many arguments - build interpreter in vm instead
-func evaluate(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]*NativeFunction,
-	globalBinding globalBindingMap, maxStack int, ic *importCache, traceOut io.Writer, notifier Notifier, stringOutputMode bool) (string, error) {
-
-	i, err := buildInterpreter(ext, nativeFuncs, globalBinding, maxStack, ic, traceOut, notifier)
-	if err != nil {
-		return "", err
-	}
-
+func evaluate(i *interpreter, node ast.Node, tla vmExtMap, stringOutputMode bool) (string, error) {
 	result, err := evaluateAux(i, node, tla)
 	if err != nil {
 		return "", err
@@ -1395,15 +1387,7 @@ func evaluate(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]
 	return buf.String(), nil
 }
 
-// TODO(sbarzowski) this function takes far too many arguments - build interpreter in vm instead
-func evaluateMulti(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]*NativeFunction,
-	globalBinding globalBindingMap, maxStack int, ic *importCache, traceOut io.Writer, notifier Notifier, stringOutputMode bool) (map[string]string, error) {
-
-	i, err := buildInterpreter(ext, nativeFuncs, globalBinding, maxStack, ic, traceOut, notifier)
-	if err != nil {
-		return nil, err
-	}
-
+func evaluateMulti(i *interpreter, node ast.Node, tla vmExtMap, stringOutputMode bool) (map[string]string, error) {
 	result, err := evaluateAux(i, node, tla)
 	if err != nil {
 		return nil, err
@@ -1415,15 +1399,7 @@ func evaluateMulti(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[st
 	return manifested, err
 }
 
-// TODO(sbarzowski) this function takes far too many arguments - build interpreter in vm instead
-func evaluateStream(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]*NativeFunction,
-	globalBinding globalBindingMap, maxStack int, ic *importCache, traceOut io.Writer, notifier Notifier) ([]string, error) {
-
-	i, err := buildInterpreter(ext, nativeFuncs, globalBinding, maxStack, ic, traceOut, notifier)
-	if err != nil {
-		return nil, err
-	}
-
+func evaluateStream(i *interpreter, node ast.Node, tla vmExtMap) ([]string, error) {
 	result, err := evaluateAux(i, node, tla)
 	if err != nil {
 		return nil, err
