@@ -48,6 +48,7 @@ type VM struct { //nolint:govet
 	importCache    *importCache
 	traceOut       io.Writer
 	notifier       Notifier
+	interpreter    *interpreter
 }
 
 type Notifier interface {
@@ -264,8 +265,34 @@ func (vm *VM) EvaluateMulti(node ast.Node) (output map[string]string, err error)
 	return evaluateMulti(i, node, vm.tla, vm.StringOutput)
 }
 
+// Freeze builds the interpreter and makes it used by all subsequent evaluation calls.
+// This makes evaluation faster, however any future adjustments to native functions, global bindings etc. have no effect.
+// Also since the interpreter is no longer created separately for every evaluation, you shouldn't call more than one evaluation at the same time on such VM.
+func (vm *VM) Freeze() error {
+	if vm.interpreter != nil {
+		return fmt.Errorf("interpreter is already frozen")
+	}
+
+	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+	if err != nil {
+		return err
+	}
+
+	vm.interpreter = i
+	return nil
+}
+
 func (vm *VM) buildInterpreter() (*interpreter, error) {
-	return buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+	if vm.interpreter != nil {
+		return vm.interpreter, nil
+	}
+
+	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
 }
 
 func (vm *VM) evaluateSnippet(diagnosticFileName ast.DiagnosticFileName, filename string, snippet string, kind evalKind) (output interface{}, err error) {
