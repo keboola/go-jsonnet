@@ -48,6 +48,7 @@ type VM struct { //nolint:govet
 	importCache    *importCache
 	traceOut       io.Writer
 	notifier       Notifier
+	interpreter    *interpreter
 }
 
 type Notifier interface {
@@ -220,7 +221,13 @@ func (vm *VM) Evaluate(node ast.Node) (val string, err error) {
 			err = fmt.Errorf("(CRASH) %v\n%s", r, debug.Stack())
 		}
 	}()
-	return evaluate(node, vm.ext, vm.tla, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier, vm.StringOutput)
+
+	i, err := vm.buildInterpreter()
+	if err != nil {
+		return "", err
+	}
+
+	return evaluate(i, node, vm.tla, vm.StringOutput)
 }
 
 // EvaluateStream evaluates a Jsonnet program given by an Abstract Syntax Tree
@@ -231,7 +238,13 @@ func (vm *VM) EvaluateStream(node ast.Node) (output []string, err error) {
 			err = fmt.Errorf("(CRASH) %v\n%s", r, debug.Stack())
 		}
 	}()
-	return evaluateStream(node, vm.ext, vm.tla, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+
+	i, err := vm.buildInterpreter()
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluateStream(i, node, vm.tla)
 }
 
 // EvaluateMulti evaluates a Jsonnet program given by an Abstract Syntax Tree
@@ -243,7 +256,43 @@ func (vm *VM) EvaluateMulti(node ast.Node) (output map[string]string, err error)
 			err = fmt.Errorf("(CRASH) %v\n%s", r, debug.Stack())
 		}
 	}()
-	return evaluateMulti(node, vm.ext, vm.tla, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier, vm.StringOutput)
+
+	i, err := vm.buildInterpreter()
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluateMulti(i, node, vm.tla, vm.StringOutput)
+}
+
+// Freeze builds the interpreter and makes it used by all subsequent evaluation calls.
+// This makes evaluation faster, however any future adjustments to native functions, global bindings etc. have no effect.
+// Also since the interpreter is no longer created separately for every evaluation, you shouldn't call more than one evaluation at the same time on such VM.
+func (vm *VM) Freeze() error {
+	if vm.interpreter != nil {
+		return fmt.Errorf("interpreter is already frozen")
+	}
+
+	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+	if err != nil {
+		return err
+	}
+
+	vm.interpreter = i
+	return nil
+}
+
+func (vm *VM) buildInterpreter() (*interpreter, error) {
+	if vm.interpreter != nil {
+		return vm.interpreter, nil
+	}
+
+	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
 }
 
 func (vm *VM) evaluateSnippet(diagnosticFileName ast.DiagnosticFileName, filename string, snippet string, kind evalKind) (output interface{}, err error) {
@@ -256,13 +305,19 @@ func (vm *VM) evaluateSnippet(diagnosticFileName ast.DiagnosticFileName, filenam
 	if err != nil {
 		return "", err
 	}
+
+	i, err := vm.buildInterpreter()
+	if err != nil {
+		return "", err
+	}
+
 	switch kind {
 	case evalKindRegular:
-		output, err = evaluate(node, vm.ext, vm.tla, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier, vm.StringOutput)
+		output, err = evaluate(i, node, vm.tla, vm.StringOutput)
 	case evalKindMulti:
-		output, err = evaluateMulti(node, vm.ext, vm.tla, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier, vm.StringOutput)
+		output, err = evaluateMulti(i, node, vm.tla, vm.StringOutput)
 	case evalKindStream:
-		output, err = evaluateStream(node, vm.ext, vm.tla, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+		output, err = evaluateStream(i, node, vm.tla)
 	}
 	if err != nil {
 		return "", err
