@@ -25,18 +25,20 @@ func prepareStdlib(g *typeGraph) {
 		"extVar": g.newSimpleFuncType(anyType, "x"),
 
 		// Types and reflection
-		"thisFile":        stringType,
-		"type":            g.newSimpleFuncType(stringType, "x"),
-		"length":          g.newSimpleFuncType(numberType, "x"),
-		"objectHas":       g.newSimpleFuncType(boolType, "o", "f"),
-		"objectFields":    g.newSimpleFuncType(arrayOfString, "o"),
-		"objectValues":    g.newSimpleFuncType(anyArrayType, "o"),
-		"objectHasAll":    g.newSimpleFuncType(boolType, "o", "f"),
-		"objectFieldsAll": g.newSimpleFuncType(arrayOfString, "o"),
-		"objectValuesAll": g.newSimpleFuncType(anyArrayType, "o"),
-		"prune":           g.newSimpleFuncType(anyObjectType, "a"),
-		"mapWithKey":      g.newSimpleFuncType(anyObjectType, "func", "obj"),
-		"get":             g.newFuncType(anyType, []ast.Parameter{required("o"), required("f"), optional("default"), optional("inc_hidden")}),
+		"thisFile":            stringType,
+		"type":                g.newSimpleFuncType(stringType, "x"),
+		"length":              g.newSimpleFuncType(numberType, "x"),
+		"objectHas":           g.newSimpleFuncType(boolType, "o", "f"),
+		"objectFields":        g.newSimpleFuncType(arrayOfString, "o"),
+		"objectValues":        g.newSimpleFuncType(anyArrayType, "o"),
+		"objectKeysValues":    g.newSimpleFuncType(anyArrayType, "o"),
+		"objectHasAll":        g.newSimpleFuncType(boolType, "o", "f"),
+		"objectFieldsAll":     g.newSimpleFuncType(arrayOfString, "o"),
+		"objectValuesAll":     g.newSimpleFuncType(anyArrayType, "o"),
+		"objectKeysValuesAll": g.newSimpleFuncType(anyArrayType, "o"),
+		"prune":               g.newSimpleFuncType(anyObjectType, "a"),
+		"mapWithKey":          g.newSimpleFuncType(anyObjectType, "func", "obj"),
+		"get":                 g.newFuncType(anyType, []ast.Parameter{required("o"), required("f"), optional("default"), optional("inc_hidden")}),
 
 		// isSomething
 		"isArray":    g.newSimpleFuncType(boolType, "v"),
@@ -45,6 +47,10 @@ func prepareStdlib(g *typeGraph) {
 		"isNumber":   g.newSimpleFuncType(boolType, "v"),
 		"isObject":   g.newSimpleFuncType(boolType, "v"),
 		"isString":   g.newSimpleFuncType(boolType, "v"),
+		"isEven":     g.newSimpleFuncType(boolType, "x"),
+		"isOdd":      g.newSimpleFuncType(boolType, "x"),
+		"isInteger":  g.newSimpleFuncType(boolType, "x"),
+		"isDecimal":  g.newSimpleFuncType(boolType, "x"),
 
 		// Mathematical utilities
 		"abs":      g.newSimpleFuncType(numberType, "n"),
@@ -72,24 +78,27 @@ func prepareStdlib(g *typeGraph) {
 
 		// String Manipulation
 
-		"toString":    g.newSimpleFuncType(stringType, "a"),
-		"codepoint":   g.newSimpleFuncType(numberType, "str"),
-		"char":        g.newSimpleFuncType(stringType, "n"),
-		"substr":      g.newSimpleFuncType(stringType, "str", "from", "len"),
-		"findSubstr":  g.newSimpleFuncType(numberArrayType, "pat", "str"),
-		"startsWith":  g.newSimpleFuncType(boolType, "a", "b"),
-		"endsWith":    g.newSimpleFuncType(boolType, "a", "b"),
-		"stripChars":  g.newSimpleFuncType(stringType, "str", "chars"),
-		"lstripChars": g.newSimpleFuncType(stringType, "str", "chars"),
-		"rstripChars": g.newSimpleFuncType(stringType, "str", "chars"),
-		"split":       g.newSimpleFuncType(arrayOfString, "str", "c"),
-		"splitLimit":  g.newSimpleFuncType(arrayOfString, "str", "c", "maxsplits"),
-		"strReplace":  g.newSimpleFuncType(stringType, "str", "from", "to"),
-		"asciiUpper":  g.newSimpleFuncType(stringType, "str"),
-		"asciiLower":  g.newSimpleFuncType(stringType, "str"),
-		"stringChars": g.newSimpleFuncType(stringType, "str"),
-		"format":      g.newSimpleFuncType(stringType, "str", "vals"),
-		"isEmpty":     g.newSimpleFuncType(boolType, "str"),
+		"toString":         g.newSimpleFuncType(stringType, "a"),
+		"codepoint":        g.newSimpleFuncType(numberType, "str"),
+		"char":             g.newSimpleFuncType(stringType, "n"),
+		"substr":           g.newSimpleFuncType(stringType, "str", "from", "len"),
+		"findSubstr":       g.newSimpleFuncType(numberArrayType, "pat", "str"),
+		"startsWith":       g.newSimpleFuncType(boolType, "a", "b"),
+		"endsWith":         g.newSimpleFuncType(boolType, "a", "b"),
+		"stripChars":       g.newSimpleFuncType(stringType, "str", "chars"),
+		"lstripChars":      g.newSimpleFuncType(stringType, "str", "chars"),
+		"rstripChars":      g.newSimpleFuncType(stringType, "str", "chars"),
+		"split":            g.newSimpleFuncType(arrayOfString, "str", "c"),
+		"splitLimit":       g.newSimpleFuncType(arrayOfString, "str", "c", "maxsplits"),
+		"splitLimitR":      g.newSimpleFuncType(arrayOfString, "str", "c", "maxsplits"),
+		"strReplace":       g.newSimpleFuncType(stringType, "str", "from", "to"),
+		"asciiUpper":       g.newSimpleFuncType(stringType, "str"),
+		"asciiLower":       g.newSimpleFuncType(stringType, "str"),
+		"stringChars":      g.newSimpleFuncType(stringType, "str"),
+		"format":           g.newSimpleFuncType(stringType, "str", "vals"),
+		"isEmpty":          g.newSimpleFuncType(boolType, "str"),
+		"equalsIgnoreCase": g.newSimpleFuncType(boolType, "str1", "str2"),
+		"trim":             g.newSimpleFuncType(stringType, "str"),
 		// TODO(sbarzowski) Fix when they match the documentation
 		"escapeStringBash":    g.newSimpleFuncType(stringType, "str_"),
 		"escapeStringDollars": g.newSimpleFuncType(stringType, "str_"),
@@ -114,8 +123,8 @@ func prepareStdlib(g *typeGraph) {
 		"manifestTomlEx":       g.newSimpleFuncType(stringType, "value", "indent"),
 		"manifestJsonEx":       g.newSimpleFuncType(stringType, "value", "indent"),
 		"manifestJsonMinified": g.newSimpleFuncType(stringType, "value"),
-		"manifestYamlDoc":      g.newSimpleFuncType(stringType, "value"),
-		"manifestYamlStream":   g.newSimpleFuncType(stringType, "value"),
+		"manifestYamlDoc":      g.newFuncType(stringType, []ast.Parameter{required("value"), optional("indent_array_in_object"), optional("quote_keys")}),
+		"manifestYamlStream":   g.newFuncType(anyArrayType, []ast.Parameter{required("value"), optional("indent_array_in_object"), optional("c_document_end"), optional("quote_keys")}),
 		"manifestXmlJsonml":    g.newSimpleFuncType(stringType, "value"),
 
 		// Arrays
@@ -137,9 +146,18 @@ func prepareStdlib(g *typeGraph) {
 		"join":          g.newSimpleFuncType(stringOrArray, "sep", "arr"),
 		"lines":         g.newSimpleFuncType(arrayOfString, "arr"),
 		"flattenArrays": g.newSimpleFuncType(anyArrayType, "arrs"),
+		"reverse":       g.newSimpleFuncType(anyArrayType, "arrs"),
 		"sort":          g.newFuncType(anyArrayType, []ast.Parameter{required("arr"), optional("keyF")}),
 		"uniq":          g.newFuncType(anyArrayType, []ast.Parameter{required("arr"), optional("keyF")}),
 		"sum":           g.newSimpleFuncType(numberType, "arr"),
+		"minArray":      g.newFuncType(anyArrayType, []ast.Parameter{required("arr"), optional("keyF"), optional("onEmpty")}),
+		"maxArray":      g.newFuncType(anyArrayType, []ast.Parameter{required("arr"), optional("keyF"), optional("onEmpty")}),
+		"contains":      g.newSimpleFuncType(boolType, "arr", "elem"),
+		"avg":           g.newSimpleFuncType(numberType, "arr"),
+		"all":           g.newSimpleFuncType(boolArrayType, "arr"),
+		"any":           g.newSimpleFuncType(boolArrayType, "arr"),
+		"remove":        g.newSimpleFuncType(anyArrayType, "arr", "elem"),
+		"removeAt":      g.newSimpleFuncType(anyArrayType, "arr", "i"),
 
 		// Sets
 
@@ -149,12 +167,20 @@ func prepareStdlib(g *typeGraph) {
 		"setDiff":   g.newFuncType(anyArrayType, []ast.Parameter{required("a"), required("b"), optional("keyF")}),
 		"setMember": g.newFuncType(boolType, []ast.Parameter{required("x"), required("arr"), optional("keyF")}),
 
+		// Objects
+
+		"objectRemoveKey": g.newSimpleFuncType(anyObjectType, "obj", "key"),
+
 		// Encoding
 
 		"base64":            g.newSimpleFuncType(stringType, "input"),
 		"base64DecodeBytes": g.newSimpleFuncType(numberType, "str"),
 		"base64Decode":      g.newSimpleFuncType(stringType, "str"),
 		"md5":               g.newSimpleFuncType(stringType, "s"),
+		"sha1":              g.newSimpleFuncType(stringType, "s"),
+		"sha256":            g.newSimpleFuncType(stringType, "s"),
+		"sha512":            g.newSimpleFuncType(stringType, "s"),
+		"sha3":              g.newSimpleFuncType(stringType, "s"),
 
 		// JSON Merge Patch
 
@@ -173,11 +199,12 @@ func prepareStdlib(g *typeGraph) {
 		"mod":              g.newSimpleFuncType(stringOrNumber, "a", "b"),
 		"native":           g.newSimpleFuncType(anyFunctionType, "x"),
 		"$objectFlatMerge": g.newSimpleFuncType(anyObjectType, "x"),
+		"$flatMapArray":    g.newSimpleFuncType(anyArrayType, "func", "arr"),
 
 		// Boolean
 
-		"xor":	g.newSimpleFuncType(boolType, "x", "y"),
-		"xnor":	g.newSimpleFuncType(boolType, "x", "y"),
+		"xor":  g.newSimpleFuncType(boolType, "x", "y"),
+		"xnor": g.newSimpleFuncType(boolType, "x", "y"),
 	}
 
 	fieldContains := map[string][]placeholderID{}

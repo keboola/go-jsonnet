@@ -9,7 +9,6 @@ We use it in https://github.com/keboola/keboola-as-code
 - Added the ability to find out where value generated from native function was used (https://github.com/keboola/go-jsonnet/commit/e94cde1292db53707112a21a872c54865e058c81).
   - Extended support also for objects merging (https://github.com/keboola/go-jsonnet/pull/11/commits/64724dddba97e86d1630d9fc6bde2ee440b4f578). 
 - Added method `VM.Bind(ast.Identifier, ast.Node)` to bind a global value (https://github.com/keboola/go-jsonnet/commit/33be8e4f383657d76f5c72bdaa55bd9afc4bdd0b).
-- Added function `formatter.FormatAst` (https://github.com/keboola/go-jsonnet/commit/9ad4d733a48d4d9ace408df008043c5d8865f329).
 - Added public `parser` package (https://github.com/keboola/go-jsonnet/commit/2ec811651f6c1cbf8e8ea0f9ae0e4ecc85b5d36c).
 - Add public `pass` package (https://github.com/keboola/go-jsonnet/commit/d84d404673c55bf44ed99ca26356f4df3f6a0238).
 
@@ -20,16 +19,12 @@ This code is known to work on Go 1.12 and above. We recommend always using the n
 ## Installation instructions
 
 ```shell
-# go >= 1.17
 # Using `go get` to install binaries is deprecated.
 # The version suffix is mandatory.
 go install github.com/google/go-jsonnet/cmd/jsonnet@latest
 
 # Or other tools in the 'cmd' directory
 go install github.com/google/go-jsonnet/cmd/jsonnet-lint@latest
-
-# go < 1.17
-go get github.com/google/go-jsonnet/cmd/jsonnet
 ```
 
 It's also available on Homebrew:
@@ -190,17 +185,6 @@ _replace the FILTER with the name of the test you are working on_
 
 ```bash
 FILTER=Builtin_manifestJsonEx make benchmark
-```
-
-## Implementation Notes
-
-We are generating some helper classes on types by using http://clipperhouse.github.io/gen/.  Do the following to regenerate these if necessary:
-
-```bash
-go get github.com/clipperhouse/gen
-go get github.com/clipperhouse/set
-export PATH=$PATH:$GOPATH/bin  # If you haven't already
-go generate
 ```
 
 ## Update cpp-jsonnet sub-repo

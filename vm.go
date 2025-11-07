@@ -47,6 +47,7 @@ type VM struct { //nolint:govet
 	StringOutput   bool
 	importCache    *importCache
 	traceOut       io.Writer
+	EvalHook       EvalHook
 	notifier       Notifier
 	interpreter    *interpreter
 }
@@ -103,6 +104,10 @@ func MakeVM() *VM {
 		importer:       &FileImporter{},
 		importCache:    makeImportCache(defaultImporter, globalBinding),
 		traceOut:       os.Stderr,
+		EvalHook: EvalHook{
+			pre:  func(i *interpreter, a ast.Node) {},
+			post: func(i *interpreter, a ast.Node, v value, err error) {},
+		},
 	}
 }
 
@@ -210,7 +215,7 @@ const (
 )
 
 // version is the current gojsonnet's version
-const version = "v0.20.0"
+const version = "v0.21.0"
 
 // Evaluate evaluates a Jsonnet program given by an Abstract Syntax Tree
 // and returns serialized JSON as string.
@@ -273,7 +278,7 @@ func (vm *VM) Freeze() error {
 		return fmt.Errorf("interpreter is already frozen")
 	}
 
-	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier, vm.EvalHook)
 	if err != nil {
 		return err
 	}
@@ -287,7 +292,7 @@ func (vm *VM) buildInterpreter() (*interpreter, error) {
 		return vm.interpreter, nil
 	}
 
-	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier)
+	i, err := buildInterpreter(vm.ext, vm.nativeFuncs, vm.globalBinding, vm.MaxStack, vm.importCache, vm.traceOut, vm.notifier, vm.EvalHook)
 	if err != nil {
 		return nil, err
 	}
@@ -343,20 +348,20 @@ func getAbsPath(path string) (string, error) {
 	return cleanedAbsPath, nil
 }
 
-func (vm *VM) findDependencies(filePath string, node *ast.Node, dependencies map[string]struct{}, stackTrace *[]traceFrame) (err error) {
+func (vm *VM) findDependencies(filePath string, node *ast.Node, dependencies map[string]struct{}, stackTrace *[]TraceFrame) (err error) {
 	var cleanedAbsPath string
 	switch i := (*node).(type) {
 	case *ast.Import:
 		node, foundAt, err := vm.ImportAST(filePath, i.File.Value)
 		if err != nil {
-			*stackTrace = append([]traceFrame{{Loc: *i.Loc()}}, *stackTrace...)
+			*stackTrace = append([]TraceFrame{{Loc: *i.Loc()}}, *stackTrace...)
 			return err
 		}
 		cleanedAbsPath = foundAt
 		if _, isFileImporter := vm.importer.(*FileImporter); isFileImporter {
 			cleanedAbsPath, err = getAbsPath(foundAt)
 			if err != nil {
-				*stackTrace = append([]traceFrame{{Loc: *i.Loc()}}, *stackTrace...)
+				*stackTrace = append([]TraceFrame{{Loc: *i.Loc()}}, *stackTrace...)
 				return err
 			}
 		}
@@ -367,20 +372,20 @@ func (vm *VM) findDependencies(filePath string, node *ast.Node, dependencies map
 		dependencies[cleanedAbsPath] = struct{}{}
 		err = vm.findDependencies(foundAt, &node, dependencies, stackTrace)
 		if err != nil {
-			*stackTrace = append([]traceFrame{{Loc: *i.Loc()}}, *stackTrace...)
+			*stackTrace = append([]TraceFrame{{Loc: *i.Loc()}}, *stackTrace...)
 			return err
 		}
 	case *ast.ImportStr:
 		foundAt, err := vm.ResolveImport(filePath, i.File.Value)
 		if err != nil {
-			*stackTrace = append([]traceFrame{{Loc: *i.Loc()}}, *stackTrace...)
+			*stackTrace = append([]TraceFrame{{Loc: *i.Loc()}}, *stackTrace...)
 			return err
 		}
 		cleanedAbsPath = foundAt
 		if _, isFileImporter := vm.importer.(*FileImporter); isFileImporter {
 			cleanedAbsPath, err = getAbsPath(foundAt)
 			if err != nil {
-				*stackTrace = append([]traceFrame{{Loc: *i.Loc()}}, *stackTrace...)
+				*stackTrace = append([]TraceFrame{{Loc: *i.Loc()}}, *stackTrace...)
 				return err
 			}
 		}
@@ -388,14 +393,14 @@ func (vm *VM) findDependencies(filePath string, node *ast.Node, dependencies map
 	case *ast.ImportBin:
 		foundAt, err := vm.ResolveImport(filePath, i.File.Value)
 		if err != nil {
-			*stackTrace = append([]traceFrame{{Loc: *i.Loc()}}, *stackTrace...)
+			*stackTrace = append([]TraceFrame{{Loc: *i.Loc()}}, *stackTrace...)
 			return err
 		}
 		cleanedAbsPath = foundAt
 		if _, isFileImporter := vm.importer.(*FileImporter); isFileImporter {
 			cleanedAbsPath, err = getAbsPath(foundAt)
 			if err != nil {
-				*stackTrace = append([]traceFrame{{Loc: *i.Loc()}}, *stackTrace...)
+				*stackTrace = append([]TraceFrame{{Loc: *i.Loc()}}, *stackTrace...)
 				return err
 			}
 		}
@@ -548,7 +553,7 @@ func (vm *VM) EvaluateFileMulti(filename string) (files map[string]string, forma
 // The `importedPaths` are parsed as if they were imported from a Jsonnet file located at `importedFrom`.
 func (vm *VM) FindDependencies(importedFrom string, importedPaths []string) ([]string, error) {
 	var nodes []*ast.Node
-	var stackTrace []traceFrame
+	var stackTrace []TraceFrame
 	filePaths := make([]string, len(importedPaths))
 	depsToExclude := make([]string, len(importedPaths))
 	deps := make(map[string]struct{})
