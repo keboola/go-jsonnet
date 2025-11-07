@@ -88,6 +88,8 @@
    "format": "test blah 42",
    "get": [
       17,
+      42,
+      18,
       42
    ],
    "isArray": true,
@@ -140,6 +142,8 @@
    "objectFieldsAll": [ ],
    "objectHas": false,
    "objectHasAll": false,
+   "objectKeysValues": [ ],
+   "objectKeysValuesAll": [ ],
    "objectValues": [ ],
    "objectValuesAll": [ ],
    "parseHex": 3735928559,
@@ -162,6 +166,10 @@
       5
    ],
    "repeat": "foofoofoo",
+   "reverse": [
+      "a",
+      "b"
+   ],
    "rstripChars": "aaabbbb",
    "set": [
       [
@@ -236,6 +244,10 @@
    "splitLimit": [
       "a",
       "b,c"
+   ],
+   "splitLimitR": [
+      "a,b",
+      "c"
    ],
    "sqrt": 2.2360679774997898,
    "startsWith": true,

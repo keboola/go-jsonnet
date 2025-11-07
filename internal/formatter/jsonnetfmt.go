@@ -151,11 +151,13 @@ func Format(filename string, input string, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return FormatAst(node, finalFodder, options), nil
+
+	return FormatNode(node, finalFodder, options)
 }
 
-// FormatAst returns code that is equivalent to its input AST.
-func FormatAst(node ast.Node, finalFodder ast.Fodder, options Options) string {
+// FormatNode returns code that is equivalent to its input but better formatted
+// according to the given options.
+func FormatNode(node ast.Node, finalFodder ast.Fodder, options Options) (string, error) {
 	// Passes to enforce style on the AST.
 	if options.SortImports {
 		SortImports(&node)
@@ -203,5 +205,5 @@ func FormatAst(node ast.Node, finalFodder ast.Fodder, options Options) string {
 		// then add a single new line to ensure Jsonnet files end with a new line.
 		u.write("\n")
 	}
-	return u.string()
+	return u.string(), nil
 }

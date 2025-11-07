@@ -16,14 +16,18 @@
     objectHas: std.objectHas(o={}, f="fieldname"),
     objectFields: std.objectFields(o={}),
     objectValues: std.objectValues(o={}),
+    objectKeysValues: std.objectKeysValues(o={}),
     objectHasAll: std.objectHasAll(o={}, f="fieldname"),
     objectFieldsAll: std.objectFieldsAll(o={}),
     objectValuesAll: std.objectValuesAll(o={}),
+    objectKeysValuesAll: std.objectKeysValuesAll(o={}),
     prune: std.prune(a={x: null, y: [null, "42"]}),
     mapWithKey: std.mapWithKey(func=function(key, value) 42, obj={a: 17}),
     get: [
         std.get(o={a:: 17}, f="a"),
         std.get(o={a:: 17}, f="a", default=42, inc_hidden=false),
+        std.get(o={a:: 17} + {a: 18}, f="a", default=42),
+        std.get(o={a:: 17} + {a: 18}, f="a", default=42, inc_hidden=false),
     ],
 
     // isSomething
@@ -70,6 +74,7 @@
     rstripChars: std.rstripChars(str="aaabbbbcccc", chars="c"),
     split: std.split(str="a,b,c", c=","),
     splitLimit: std.splitLimit(str="a,b,c", c=",", maxsplits=1),
+    splitLimitR: std.splitLimitR(str="a,b,c", c=",", maxsplits=1),
     strReplace: std.strReplace(str="aaa", from="aa", to="bb"),
     asciiUpper: std.asciiUpper(str="Blah"),
     asciiLower: std.asciiLower(str="Blah"),
@@ -124,6 +129,7 @@
     join:  std.join(sep=",", arr=["a", "b", "c"]),
     lines: std.lines(arr=["a", "b", "c"]),
     flattenArrays: std.flattenArrays([[1], [2, 3], [4, 5, [6, 7]]]),
+    reverse: std.reverse(["b", "a"]),
     sort: [
         std.sort([2, 3, 1]),
         std.sort(arr=[2, 3, 1], keyF=function(x) -x),
