@@ -108,6 +108,7 @@ type jsonnetInput struct {
 	input            []byte
 	eKind            evalKind
 	stringOutputMode bool
+	noNewline        bool // not nice to have a negative flag, but it gives the more relevant default
 	extVars          map[string]string
 	extCode          map[string]string
 }
@@ -134,6 +135,7 @@ func runInternalJsonnet(i jsonnetInput) jsonnetResult {
 	errFormatter := termErrorFormatter{pretty: true, maxStackTraceSize: 9}
 
 	vm.StringOutput = i.stringOutputMode
+	vm.OutputNewline = !i.noNewline
 	for name, value := range i.extVars {
 		vm.ExtVar(name, value)
 	}
@@ -336,6 +338,7 @@ func runTest(t *testing.T, test *mainTest) {
 		input:            input,
 		eKind:            eKind,
 		stringOutputMode: strings.HasSuffix(test.golden, "_string_output.golden"),
+		noNewline:        strings.Contains(test.golden, "_no_newline"),
 		extVars:          test.meta.extVars,
 		extCode:          test.meta.extCode,
 	})
@@ -515,5 +518,22 @@ func TestEvalUnusualFilenames(t *testing.T) {
 				meta:   emptyMetadata,
 			})
 		})
+	}
+}
+
+func TestEvalCachedErrorTwice(t *testing.T) {
+	// Evaluate the same erroneous file twice in the same VM.
+	// See https://github.com/google/go-jsonnet/issues/822
+	vm := MakeVM()
+	_, err1 := vm.EvaluateFile("testdata/syntax_error.jsonnet")
+	if err1 == nil {
+		t.Fatal("expected an error")
+	}
+	_, err2 := vm.EvaluateFile("testdata/syntax_error.jsonnet")
+	if err2 == nil {
+		t.Fatal("expected an error")
+	}
+	if err1.Error() != err2.Error() {
+		t.Fatalf("different error on the second run:\n1st: %q\n2nd: %q", err1, err2)
 	}
 }

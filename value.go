@@ -580,6 +580,8 @@ func checkAssertionsHelper(i *interpreter, obj *valueObject, curr uncachedObject
 			return err
 		}
 		return nil
+	case *restrictedObject:
+		return checkAssertionsHelper(i, obj, curr.obj, superDepth+1)
 	case *simpleObject:
 		for _, assert := range curr.asserts {
 			sb := selfBinding{self: obj, superDepth: superDepth}
@@ -685,6 +687,27 @@ func makeValueExtendedObject(left, right *valueObject) *valueObject {
 	return v
 }
 
+// restrictedObject represents an object created by std.objectRemoveKey.
+// It passes through field accesses, restricted to the fields it already knows about.
+type restrictedObject struct {
+	obj            uncachedObject
+	retainedFields fieldHideMap
+}
+
+func (o *restrictedObject) inheritanceSize() int {
+	return 1 + o.obj.inheritanceSize()
+}
+
+func makeValueRestrictedObject(obj *valueObject) *valueObject {
+	return &valueObject{
+		cache: make(map[objectCacheKey]value),
+		uncached: &restrictedObject{
+			obj:            obj.uncached,
+			retainedFields: objectFieldsVisibility(obj),
+		},
+	}
+}
+
 // findField returns a field in object curr, with superDepth at least minSuperDepth
 // It also returns an associated bindingFrame and actual superDepth that the field
 // was found at.
@@ -699,6 +722,15 @@ func findField(curr uncachedObject, minSuperDepth int, f string) (bool, simpleOb
 		}
 		found, field, frame, locals, counter := findField(curr.left, minSuperDepth-curr.right.inheritanceSize(), f)
 		return found, field, frame, locals, counter + curr.right.inheritanceSize()
+
+	case *restrictedObject:
+		if minSuperDepth == 0 {
+			if _, ok := curr.retainedFields[f]; !ok {
+				return false, simpleObjectField{}, nil, nil, 0
+			}
+		}
+		found, field, frame, locals, counter := findField(curr.obj, minSuperDepth-1, f)
+		return found, field, frame, locals, counter + 1
 
 	case *simpleObject:
 		if minSuperDepth <= 0 {
@@ -784,6 +816,12 @@ func uncachedObjectFieldsVisibility(obj uncachedObject) fieldHideMap {
 			} else {
 				r[k] = v
 			}
+		}
+		return r
+
+	case *restrictedObject:
+		for k, v := range obj.retainedFields {
+			r[k] = v
 		}
 		return r
 

@@ -4,6 +4,34 @@
 // Functions without optional arguments need only one line
 // Functions with optional arguments need two lines - one with none of the optional arguments
 // and the other with all of them.
+local assertClose(a, b) =
+  // Using 1e-12 as tolerance. Jsonnet uses double-precision floats with machine epsilon of 2**-53 ≈ 1.11e-16.
+  // This tolerance is ~9000x the machine epsilon, which is quite lenient and should work across
+  // different platforms and math libraries.
+  //
+  // We use a combination of absolute and relative error to handle both small and large values:
+  // - For values near zero, we use absolute error to avoid division issues
+  // - For larger values, we use relative error to maintain precision
+  //
+  // This correctly handles cases like:
+  //   assertClose(1e-15, 0) - should pass (both are essentially zero)
+  //   assertClose(-100, 0) - should fail (significant difference)
+  //   assertClose(std.sin(std.pi), 0) - should pass (tiny floating point error)
+  local abs_a = std.abs(a);
+  local abs_b = std.abs(b);
+  local diff = std.abs(a - b);
+  local max_abs = std.max(abs_a, abs_b);
+  local err =
+    if abs_a == 0 && abs_b == 0 then
+      0  // Both are exactly zero, so no error
+    else if max_abs < 1e-12 then
+      diff  // For very small values, use absolute error
+    else
+      diff / max_abs;  // For larger values, use relative error
+  if err > 1e-12 then
+    error 'Assertion failed (error ' + err + '). ' + a + ' !~ ' + b
+  else
+    true;
 
 {
     // extVar and native are skipped here, because of the special setup required.
@@ -45,18 +73,18 @@
     min: std.min(a=2, b=3),
     pow: std.pow(x=2, n=3),
     exp: std.exp(x=5),
-    log: std.log(x=5),
+    log: assertClose(std.log(x=5), 1.6094379124341003),
     exponent: std.exponent(x=5),
     mantissa: std.mantissa(x=5),
     floor: std.floor(x=5),
     ceil: std.ceil(x=5),
-    sqrt: std.sqrt(x=5),
-    sin: std.sin(x=5),
-    cos: std.cos(x=5),
-    tan: std.tan(x=5),
-    asin: std.asin(x=0.5),
-    acos: std.acos(x=0.5),
-    atan: std.atan(x=5),
+    sqrt: assertClose(std.sqrt(x=5), 2.2360679774997898),
+    sin: assertClose(std.sin(x=5), -0.9589242746631385),
+    cos: assertClose(std.cos(x=5), 0.2836621854632263),
+    tan: assertClose(std.tan(x=5), -3.3805150062465854),
+    asin: assertClose(std.asin(x=0.5), 0.52359877559829893),
+    acos: assertClose(std.acos(x=0.5), 1.0471975511965976),
+    atan: assertClose(std.atan(x=5), 1.3734007669450157),
 
     // Assertions and debugging
     assertEqual: std.assertEqual(a="a", b="a"),

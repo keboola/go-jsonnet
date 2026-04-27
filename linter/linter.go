@@ -45,39 +45,30 @@ type nodeWithLocation struct {
 
 // Lint analyses a node and reports any issues it encounters to an error writer.
 func lint(vm *jsonnet.VM, nodes []nodeWithLocation, errWriter *ErrorWriter) {
-	roots := make(map[string]ast.Node)
-	for _, node := range nodes {
-		roots[node.path] = node.node
-	}
-	for _, node := range nodes {
-		getImports(vm, node, roots, errWriter)
-	}
-
-	variablesInFile := make(map[string]common.VariableInfo)
-
 	std := common.Variable{
 		Name:         "std",
 		Occurences:   nil,
 		VariableKind: common.VarStdlib,
 	}
 
-	findVariables := func(node nodeWithLocation) *common.VariableInfo {
-		return variables.FindVariables(node.node, variables.Environment{"std": &std, "$std": &std})
-	}
-
-	for importedPath, rootNode := range roots {
-		variablesInFile[importedPath] = *findVariables(nodeWithLocation{rootNode, importedPath})
-	}
-
-	vars := make(map[string]map[ast.Node]*common.Variable)
-	for importedPath, info := range variablesInFile {
-		vars[importedPath] = info.VarAt
-	}
+	stdEnv := variables.Environment{"std": &std, "$std": &std}
 
 	for _, node := range nodes {
-		variableInfo := findVariables(node)
+		roots := make(map[string]ast.Node)
+		roots[node.path] = node.node
+		getImports(vm, node, roots, errWriter)
 
-		for _, v := range variableInfo.Variables {
+		variablesInFile := make(map[string]common.VariableInfo)
+		for importedPath, rootNode := range roots {
+			variablesInFile[importedPath] = *variables.FindVariables(rootNode, stdEnv)
+		}
+
+		vars := make(map[string]map[ast.Node]*common.Variable)
+		for importedPath, info := range variablesInFile {
+			vars[importedPath] = info.VarAt
+		}
+
+		for _, v := range variablesInFile[node.path].Variables {
 			if len(v.Occurences) == 0 && v.VariableKind == common.VarRegular && v.Name != "$" {
 				errWriter.writeError(vm, errors.MakeStaticError("Unused variable: "+string(v.Name), v.LocRange))
 			}

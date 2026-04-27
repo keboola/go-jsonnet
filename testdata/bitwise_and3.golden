@@ -1,4 +1,4 @@
-RUNTIME ERROR: Bitwise operator argument 1e+30 outside of range [-9223372036854775808, 9223372036854775807]
+RUNTIME ERROR: Bitwise operator argument 1e+30 outside of range [-9007199254740991, 9007199254740991]
 -------------------------------------------------
 	testdata/bitwise_and3:1:1-10	$
 

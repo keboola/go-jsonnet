@@ -1,7 +1,7 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "go_default_library",
+    name = "types",
     srcs = [
         "build_graph.go",
         "check.go",
@@ -15,8 +15,8 @@ go_library(
     importpath = "github.com/google/go-jsonnet/linter/internal/types",
     visibility = ["//linter:__subpackages__"],
     deps = [
-        "//ast:go_default_library",
-        "//internal/parser:go_default_library",
-        "//linter/internal/common:go_default_library",
+        "//ast",
+        "//internal/parser",
+        "//linter/internal/common",
     ],
 )

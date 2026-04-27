@@ -1,0 +1,13 @@
+RUNTIME ERROR: Field does not exist: x
+-------------------------------------------------
+	testdata/builtinObjectRemoveKey_super_assert:2:10-16	object <o1>
+
+  assert self.x : 'x',
+
+-------------------------------------------------
+	Checking object assertions	
+
+-------------------------------------------------
+	During manifestation	
+
+

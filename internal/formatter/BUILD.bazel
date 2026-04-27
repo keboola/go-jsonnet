@@ -1,7 +1,7 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "go_default_library",
+    name = "formatter",
     srcs = [
         "add_plus_object.go",
         "enforce_comment_style.go",
@@ -20,10 +20,11 @@ go_library(
         "unparser.go",
     ],
     importpath = "github.com/google/go-jsonnet/internal/formatter",
-    visibility = ["//visibility:public"],
+    visibility = ["//:__subpackages__"],
     deps = [
-        "//ast:go_default_library",
-        "//internal/parser:go_default_library",
-        "//internal/pass:go_default_library",
+        "//ast",
+        "//internal/ast",
+        "//internal/parser",
+        "//internal/pass",
     ],
 )

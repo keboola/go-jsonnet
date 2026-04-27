@@ -51,6 +51,7 @@ func prepareStdlib(g *typeGraph) {
 		"isOdd":      g.newSimpleFuncType(boolType, "x"),
 		"isInteger":  g.newSimpleFuncType(boolType, "x"),
 		"isDecimal":  g.newSimpleFuncType(boolType, "x"),
+		"isNull":     g.newSimpleFuncType(boolType, "x"),
 
 		// Mathematical utilities
 		"abs":      g.newSimpleFuncType(numberType, "n"),
@@ -72,6 +73,7 @@ func prepareStdlib(g *typeGraph) {
 		"acos":     g.newSimpleFuncType(numberType, "x"),
 		"atan":     g.newSimpleFuncType(numberType, "x"),
 		"round":    g.newSimpleFuncType(numberType, "x"),
+		"clamp":    g.newSimpleFuncType(numberType, "x", "min", "max"),
 
 		// Assertions and debugging
 		"assertEqual": g.newSimpleFuncType(boolType, "a", "b"),
@@ -121,7 +123,7 @@ func prepareStdlib(g *typeGraph) {
 		"manifestPython":       g.newSimpleFuncType(stringType, "v"),
 		"manifestPythonVars":   g.newSimpleFuncType(stringType, "conf"),
 		"manifestTomlEx":       g.newSimpleFuncType(stringType, "value", "indent"),
-		"manifestJsonEx":       g.newSimpleFuncType(stringType, "value", "indent"),
+		"manifestJsonEx":       g.newFuncType(stringType, []ast.Parameter{required("value"), required("indent"), optional("newline"), optional("key_val_sep")}),
 		"manifestJsonMinified": g.newSimpleFuncType(stringType, "value"),
 		"manifestYamlDoc":      g.newFuncType(stringType, []ast.Parameter{required("value"), optional("indent_array_in_object"), optional("quote_keys")}),
 		"manifestYamlStream":   g.newFuncType(anyArrayType, []ast.Parameter{required("value"), optional("indent_array_in_object"), optional("c_document_end"), optional("quote_keys")}),

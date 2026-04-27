@@ -2,7 +2,7 @@
 
 # Updates cpp-jsonnet repo and regenerates dependent files
 
-set -e
+set -euo pipefail
 set -x
 
 cd cpp-jsonnet
@@ -34,10 +34,9 @@ sed -i.bak \
     -e "s/CPP_JSONNET_SHA256 = .*/CPP_JSONNET_SHA256 = \"$sha256\"/;" \
     -e "s/CPP_JSONNET_GITHASH = .*/CPP_JSONNET_GITHASH = \"$hash\"/;" \
     -e "s/CPP_JSONNET_RELEASE_VERSION = .*/CPP_JSONNET_RELEASE_VERSION = \"$WANT_VERSION_NAME\"/;" \
-    bazel/repositories.bzl MODULE.bazel
+    MODULE.bazel
 
 # NB: macOS sed doesn't support -i without arg. This is the easy workaround.
-rm bazel/repositories.bzl.bak
 rm MODULE.bazel.bak
 
 set +x

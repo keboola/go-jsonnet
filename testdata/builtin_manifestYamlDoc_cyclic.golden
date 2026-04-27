@@ -1,0 +1,10 @@
+RUNTIME ERROR: max manifest depth exceeded, possible infinite recursion
+-------------------------------------------------
+	testdata/builtin_manifestYamlDoc_cyclic:1:1-28	$
+
+std.manifestYamlDoc({a: $})
+
+-------------------------------------------------
+	During evaluation	
+
+

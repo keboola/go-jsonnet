@@ -246,10 +246,12 @@ func main() {
 			// Should already have been caught by processArgs.
 			panic("Internal error: expected at least one input file.")
 		}
+		changedFiles := false
 		for _, inputFile := range config.inputFiles {
 			outputFile := inputFile
+			inputIsStdin := inputFile == "-"
 			if config.inPlace {
-				if inputFile == "-" {
+				if inputIsStdin {
 					fmt.Fprintf(os.Stderr, "ERROR: cannot use --in-place with stdin\n")
 					os.Exit(1)
 				}
@@ -267,16 +269,22 @@ func main() {
 			}
 
 			if output != input {
+				changedFiles = true
 				if config.inPlace {
 					err := cmd.WriteOutputFile(output, outputFile, false)
 					if err != nil {
 						fmt.Fprintln(os.Stderr, err.Error())
 						os.Exit(1)
 					}
-				} else {
-					os.Exit(2)
+				}
+				if !config.filenameIsCode && !inputIsStdin {
+					fmt.Println(inputFile)
 				}
 			}
+		}
+
+		if changedFiles && config.test {
+			os.Exit(2)
 		}
 
 	} else {

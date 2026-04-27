@@ -21,38 +21,9 @@ import (
 	"fmt"
 
 	"github.com/google/go-jsonnet/ast"
+	iast "github.com/google/go-jsonnet/internal/ast"
 	"github.com/google/go-jsonnet/internal/errors"
 )
-
-type precedence int
-
-const (
-	applyPrecedence precedence = 2  // ast.Function calls and indexing.
-	unaryPrecedence precedence = 4  // Logical and bitwise negation, unary + -
-	maxPrecedence   precedence = 16 // ast.Local, If, ast.Import, ast.Function, Error
-)
-
-var bopPrecedence = map[ast.BinaryOp]precedence{
-	ast.BopMult:            5,
-	ast.BopDiv:             5,
-	ast.BopPercent:         5,
-	ast.BopPlus:            6,
-	ast.BopMinus:           6,
-	ast.BopShiftL:          7,
-	ast.BopShiftR:          7,
-	ast.BopGreater:         8,
-	ast.BopGreaterEq:       8,
-	ast.BopLess:            8,
-	ast.BopLessEq:          8,
-	ast.BopIn:              8,
-	ast.BopManifestEqual:   9,
-	ast.BopManifestUnequal: 9,
-	ast.BopBitwiseAnd:      10,
-	ast.BopBitwiseXor:      11,
-	ast.BopBitwiseOr:       12,
-	ast.BopAnd:             13,
-	ast.BopOr:              14,
-}
 
 // ---------------------------------------------------------------------------
 
@@ -135,7 +106,7 @@ func (p *parser) parseArgument() (ast.Fodder, *ast.Identifier, ast.Fodder, ast.N
 		eq := p.pop()
 		eqFodder = eq.fodder
 	}
-	expr, err := p.parse(maxPrecedence)
+	expr, err := p.parse(iast.MaxPrecedence)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -213,7 +184,7 @@ func (p *parser) parseParameter() (ast.Parameter, errors.StaticError) {
 	if p.peek().kind == tokenOperator && p.peek().data == "=" {
 		eq := p.pop()
 		ret.EqFodder = eq.fodder
-		ret.DefaultArg, err = p.parse(maxPrecedence)
+		ret.DefaultArg, err = p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return ret, err
 		}
@@ -294,7 +265,7 @@ func (p *parser) parseBind(binds *ast.LocalBinds) (*token, errors.StaticError) {
 	if popErr != nil {
 		return nil, popErr
 	}
-	body, err := p.parse(maxPrecedence)
+	body, err := p.parse(iast.MaxPrecedence)
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +418,7 @@ func (p *parser) parseObjectRemainderField(literalFields *literalFieldSet, tok *
 		fodder1 = next.fodder
 		kind = ast.ObjectFieldExpr
 		var err errors.StaticError
-		expr1, err = p.parse(maxPrecedence)
+		expr1, err = p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -490,7 +461,7 @@ func (p *parser) parseObjectRemainderField(literalFields *literalFieldSet, tok *
 		}
 	}
 
-	body, err := p.parse(maxPrecedence)
+	body, err := p.parse(iast.MaxPrecedence)
 	if err != nil {
 		return nil, err
 	}
@@ -560,7 +531,7 @@ func (p *parser) parseObjectRemainderLocal(binds *ast.IdentifierSet, tok *token,
 		return nil, popErr
 	}
 
-	body, err := p.parse(maxPrecedence)
+	body, err := p.parse(iast.MaxPrecedence)
 	if err != nil {
 		return nil, err
 	}
@@ -599,7 +570,7 @@ func (p *parser) parseObjectRemainderLocal(binds *ast.IdentifierSet, tok *token,
 }
 
 func (p *parser) parseObjectRemainderAssert(tok *token, next *token) (*ast.ObjectField, errors.StaticError) {
-	cond, err := p.parse(maxPrecedence)
+	cond, err := p.parse(iast.MaxPrecedence)
 	if err != nil {
 		return nil, err
 	}
@@ -609,7 +580,7 @@ func (p *parser) parseObjectRemainderAssert(tok *token, next *token) (*ast.Objec
 	if p.peek().kind == tokenOperator && p.peek().data == ":" {
 		colonToken := p.pop()
 		colonFodder = colonToken.fodder
-		msg, err = p.parse(maxPrecedence)
+		msg, err = p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -718,7 +689,7 @@ func (p *parser) parseComprehensionSpecs(forToken *token, end tokenKind) (*ast.F
 		if err != nil {
 			return nil, nil, err
 		}
-		arr, err := p.parse(maxPrecedence)
+		arr, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -733,7 +704,7 @@ func (p *parser) parseComprehensionSpecs(forToken *token, end tokenKind) (*ast.F
 
 		maybeIf := p.pop()
 		for ; maybeIf.kind == tokenIf; maybeIf = p.pop() {
-			cond, err := p.parse(maxPrecedence)
+			cond, err := p.parse(iast.MaxPrecedence)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -768,7 +739,7 @@ func (p *parser) parseArray(tok *token) (ast.Node, errors.StaticError) {
 		}, nil
 	}
 
-	first, err := p.parse(maxPrecedence)
+	first, err := p.parse(iast.MaxPrecedence)
 	if err != nil {
 		return nil, err
 	}
@@ -814,7 +785,7 @@ func (p *parser) parseArray(tok *token) (ast.Node, errors.StaticError) {
 		if !gotComma {
 			return nil, errors.MakeStaticError("Expected a comma before next array element", next.loc)
 		}
-		nextElem, err := p.parse(maxPrecedence)
+		nextElem, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -914,7 +885,7 @@ func (p *parser) parseTerminal() (ast.Node, errors.StaticError) {
 		return p.parseArray(tok)
 
 	case tokenParenL:
-		inner, err := p.parse(maxPrecedence)
+		inner, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -981,7 +952,7 @@ func (p *parser) parseTerminal() (ast.Node, errors.StaticError) {
 			id = (*ast.Identifier)(&fieldID.data)
 		case tokenBracketL:
 			var err errors.StaticError
-			index, err = p.parse(maxPrecedence)
+			index, err = p.parse(iast.MaxPrecedence)
 			if err != nil {
 				return nil, err
 			}
@@ -1009,15 +980,15 @@ func (p *parser) parsingFailure(msg string, tok *token) (ast.Node, errors.Static
 	return nil, errors.MakeStaticError(msg, tok.loc)
 }
 
-func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
+func (p *parser) parse(prec iast.Precedence) (ast.Node, errors.StaticError) {
 	begin := p.peek()
 
 	switch begin.kind {
-	// These cases have effectively maxPrecedence as the first
+	// These cases have effectively iast.MaxPrecedence as the first
 	// call to parse will parse them.
 	case tokenAssert:
 		p.pop()
-		cond, err := p.parse(maxPrecedence)
+		cond, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1026,7 +997,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 		if p.peek().kind == tokenOperator && p.peek().data == ":" {
 			colon := p.pop()
 			colonFodder = colon.fodder
-			msg, err = p.parse(maxPrecedence)
+			msg, err = p.parse(iast.MaxPrecedence)
 			if err != nil {
 				return nil, err
 			}
@@ -1035,7 +1006,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 		if err != nil {
 			return nil, err
 		}
-		rest, err := p.parse(maxPrecedence)
+		rest, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1050,7 +1021,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 
 	case tokenError:
 		p.pop()
-		expr, err := p.parse(maxPrecedence)
+		expr, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1061,7 +1032,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 
 	case tokenIf:
 		p.pop()
-		cond, err := p.parse(maxPrecedence)
+		cond, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1069,7 +1040,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 		if err != nil {
 			return nil, err
 		}
-		branchTrue, err := p.parse(maxPrecedence)
+		branchTrue, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1079,7 +1050,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 		if p.peek().kind == tokenElse {
 			elseToken := p.pop()
 			elseFodder = elseToken.fodder
-			branchFalse, err = p.parse(maxPrecedence)
+			branchFalse, err = p.parse(iast.MaxPrecedence)
 			if err != nil {
 				return nil, err
 			}
@@ -1104,7 +1075,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 		if err != nil {
 			return nil, err
 		}
-		body, err := p.parse(maxPrecedence)
+		body, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1119,7 +1090,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 
 	case tokenImport:
 		p.pop()
-		body, err := p.parse(maxPrecedence)
+		body, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1136,7 +1107,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 
 	case tokenImportStr:
 		p.pop()
-		body, err := p.parse(maxPrecedence)
+		body, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1153,7 +1124,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 
 	case tokenImportBin:
 		p.pop()
-		body, err := p.parse(maxPrecedence)
+		body, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1180,7 +1151,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 				break
 			}
 		}
-		body, err := p.parse(maxPrecedence)
+		body, err := p.parse(iast.MaxPrecedence)
 		if err != nil {
 			return nil, err
 		}
@@ -1197,7 +1168,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 			if !ok {
 				return nil, errors.MakeStaticError(fmt.Sprintf("Not a unary operator: %v", begin.data), begin.loc)
 			}
-			if prec == unaryPrecedence {
+			if prec == iast.UnaryPrecedence {
 				op := p.pop()
 				expr, err := p.parse(prec)
 				if err != nil {
@@ -1232,7 +1203,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 			switch p.peek().kind {
 			case tokenIn:
 				bop = ast.BopIn
-				if bopPrecedence[bop] != prec {
+				if iast.BinaryOpPrecedence(bop) != prec {
 					return lhs, nil
 				}
 			case tokenOperator:
@@ -1256,12 +1227,12 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 				if !ok {
 					return nil, errors.MakeStaticError(fmt.Sprintf("Not a binary operator: %v", p.peek().data), p.peek().loc)
 				}
-				if bopPrecedence[bop] != prec {
+				if iast.BinaryOpPrecedence(bop) != prec {
 					return lhs, nil
 				}
 
 			case tokenDot, tokenBracketL, tokenParenL, tokenBraceL:
-				if applyPrecedence != prec {
+				if iast.ApplyPrecedence != prec {
 					return lhs, nil
 				}
 			default:
@@ -1295,7 +1266,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 						colonsConsumed += 2
 						readyForNextIndex = true
 					} else if readyForNextIndex {
-						indexes[colonsConsumed], err = p.parse(maxPrecedence)
+						indexes[colonsConsumed], err = p.parse(iast.MaxPrecedence)
 						if err != nil {
 							return nil, err
 						}
@@ -1413,7 +1384,7 @@ func (p *parser) parse(prec precedence) (ast.Node, errors.StaticError) {
 // returned as well.
 func Parse(t Tokens) (ast.Node, ast.Fodder, errors.StaticError) {
 	p := makeParser(t)
-	expr, err := p.parse(maxPrecedence)
+	expr, err := p.parse(iast.MaxPrecedence)
 	if err != nil {
 		return nil, nil, err
 	}

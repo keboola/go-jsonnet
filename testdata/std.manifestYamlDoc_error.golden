@@ -1,0 +1,15 @@
+RUNTIME ERROR: foo
+-------------------------------------------------
+	testdata/std.manifestYamlDoc_error:1:31-42	object <anonymous>
+
+std.manifestYamlDoc({ x: { y: error 'foo' } })
+
+-------------------------------------------------
+	testdata/std.manifestYamlDoc_error:1:1-47	$
+
+std.manifestYamlDoc({ x: { y: error 'foo' } })
+
+-------------------------------------------------
+	During evaluation	
+
+
