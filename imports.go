@@ -98,10 +98,15 @@ func MakeContentsRaw(bytes []byte) Contents {
 // It also verifies that the content pointer is the same for two foundAt values.
 type importCache struct {
 	foundAtVerification map[string]Contents
-	astCache            map[string]ast.Node
+	astCache            map[string]astCacheEntry
 	codeCache           map[string]potentialValue
 	importer            Importer
 	globalBinding       globalBindingMap
+}
+
+type astCacheEntry struct {
+	node ast.Node
+	err  error
 }
 
 // makeImportCache creates an importCache using an Importer.
@@ -109,7 +114,7 @@ func makeImportCache(importer Importer, globalBinding globalBindingMap) *importC
 	return &importCache{
 		importer:            importer,
 		foundAtVerification: make(map[string]Contents),
-		astCache:            make(map[string]ast.Node),
+		astCache:            make(map[string]astCacheEntry),
 		codeCache:           make(map[string]potentialValue),
 		globalBinding:       globalBinding,
 	}
@@ -139,11 +144,11 @@ func (cache *importCache) importAST(importedFrom, importedPath string) (ast.Node
 	if err != nil {
 		return nil, "", err
 	}
-	if cachedNode, isCached := cache.astCache[foundAt]; isCached {
-		return cachedNode, foundAt, nil
+	if entry, isCached := cache.astCache[foundAt]; isCached {
+		return entry.node, foundAt, entry.err
 	}
 	node, err := program.SnippetToAST(ast.DiagnosticFileName(foundAt), foundAt, contents.String(), cache.globalBinding.Identifiers()...)
-	cache.astCache[foundAt] = node
+	cache.astCache[foundAt] = astCacheEntry{node: node, err: err}
 	return node, foundAt, err
 }
 
@@ -220,7 +225,13 @@ func (cache *importCache) importCode(importedFrom, importedPath string, i *inter
 // FileImporter imports data from the filesystem.
 type FileImporter struct {
 	fsCache map[string]*fsCacheEntry
-	JPaths  []string
+
+	// JPaths is a slice of extra paths to search for relative imports.
+	// Note this is not an isolation or restriction mechanism; absolute
+	// import paths or paths that traverse up the directory hierarchy
+	// are both allowed, so imports can access any file path regardless
+	// of the content of JPaths.
+	JPaths []string
 }
 
 type fsCacheEntry struct {

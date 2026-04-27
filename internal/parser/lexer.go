@@ -451,7 +451,7 @@ func (l *lexer) lexUntilNewline() (string, int, int) {
 // that the next rune to be served by the lexer will be a leading digit.
 func (l *lexer) lexNumber() error {
 	// This function should be understood with reference to the linked image:
-	// http://www.json.org/number.gif
+	// https://www.json.org/img/number.png
 
 	// Note, we deviate from the json.org documentation as follows:
 	// There is no reason to lex negative numbers as atomic tokens, it is better to parse them
@@ -463,13 +463,17 @@ func (l *lexer) lexNumber() error {
 		numBegin numLexState = iota
 		numAfterZero
 		numAfterOneToNine
+		numAfterIntUnderscore
 		numAfterDot
 		numAfterDigit
+		numAfterFracUnderscore
 		numAfterE
 		numAfterExpSign
 		numAfterExpDigit
+		numAfterExpUnderscore
 	)
 
+	var cb bytes.Buffer
 	state := numBegin
 
 outerLoop:
@@ -492,6 +496,10 @@ outerLoop:
 				state = numAfterDot
 			case 'e', 'E':
 				state = numAfterE
+			case '_':
+				return l.makeStaticErrorPoint(
+					fmt.Sprintf("Couldn't lex number, _ not allowed after leading 0"),
+					l.location())
 			default:
 				break outerLoop
 			}
@@ -503,8 +511,20 @@ outerLoop:
 				state = numAfterE
 			case r >= '0' && r <= '9':
 				state = numAfterOneToNine
+			case r == '_':
+				state = numAfterIntUnderscore
 			default:
 				break outerLoop
+			}
+		case numAfterIntUnderscore:
+			// The only valid transition out of _ is to a digit.
+			switch {
+			case r >= '0' && r <= '9':
+				state = numAfterOneToNine
+			default:
+				return l.makeStaticErrorPoint(
+					fmt.Sprintf("Couldn't lex number, junk after '_': %v", strconv.QuoteRuneToASCII(r)),
+					l.location())
 			}
 		case numAfterDot:
 			switch {
@@ -521,8 +541,20 @@ outerLoop:
 				state = numAfterE
 			case r >= '0' && r <= '9':
 				state = numAfterDigit
+			case r == '_':
+				state = numAfterFracUnderscore
 			default:
 				break outerLoop
+			}
+		case numAfterFracUnderscore:
+			// The only valid transition out of _ is to a digit.
+			switch {
+			case r >= '0' && r <= '9':
+				state = numAfterDigit
+			default:
+				return l.makeStaticErrorPoint(
+					fmt.Sprintf("Couldn't lex number, junk after '_': %v", strconv.QuoteRuneToASCII(r)),
+					l.location())
 			}
 		case numAfterE:
 			switch {
@@ -545,16 +577,35 @@ outerLoop:
 			}
 
 		case numAfterExpDigit:
-			if r >= '0' && r <= '9' {
+			switch {
+			case r >= '0' && r <= '9':
 				state = numAfterExpDigit
-			} else {
+			case r == '_':
+				state = numAfterExpUnderscore
+			default:
 				break outerLoop
 			}
+
+		case numAfterExpUnderscore:
+			// The only valid transition out of _ is to a digit.
+			switch {
+			case r >= '0' && r <= '9':
+				state = numAfterExpDigit
+			default:
+				return l.makeStaticErrorPoint(
+					fmt.Sprintf("Couldn't lex number, junk after '_': %v", strconv.QuoteRuneToASCII(r)),
+					l.location())
+			}
+		}
+
+		if r != '_' {
+			cb.WriteRune(r)
 		}
 		l.next()
 	}
 
-	l.emitToken(tokenNumber)
+	l.emitFullToken(tokenNumber, cb.String(), "", "")
+	l.resetTokenStart()
 	return nil
 }
 
@@ -978,7 +1029,6 @@ func Lex(diagnosticFilename ast.DiagnosticFileName, importedFilename, input stri
 					fmt.Sprintf("Could not lex the character %s", strconv.QuoteRuneToASCII(r)),
 					l.location())
 			}
-
 		}
 	}
 

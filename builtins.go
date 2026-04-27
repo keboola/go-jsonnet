@@ -715,10 +715,14 @@ func builtinRange(i *interpreter, fromv, tov value) (value, error) {
 	if err != nil {
 		return nil, err
 	}
-	elems := make([]*cachedThunk, to-from+1)
-	for i := from; i <= to; i++ {
-		elems[i-from] = readyThunk(intToValue(i))
+	if n := to - from + 1; n > 0 {
+		elems := make([]*cachedThunk, n)
+		for i := from; i <= to; i++ {
+			elems[i-from] = readyThunk(intToValue(i))
+		}
+		return makeValueArray(elems), nil
 	}
+	var elems []*cachedThunk
 	return makeValueArray(elems), nil
 }
 
@@ -1190,6 +1194,16 @@ var builtinIsDecimal = liftNumericToBoolean(func(f float64) bool {
 	return frac != 0
 })
 
+// IEEE-754 double precision floats can safely store integers in the range [-2**53+1, 2**53-1].
+// We restrict bitwise operations to arguments in this range, since operating on larger values is
+// likely to be a mistake.
+// https://jsonnet.org/ref/language.html#number
+// See also Javascript Number.{MIN_SAFE_INTEGER,MAX_SAFE_INTEGER}
+const (
+	maxSafeIntValue float64 = (1 << 53) - 1
+	minSafeIntValue float64 = -maxSafeIntValue
+)
+
 func liftBitwise(f func(int64, int64) int64, positiveRightArg bool) func(*interpreter, value, value) (value, error) {
 	return func(i *interpreter, xv, yv value) (value, error) {
 		x, err := i.getNumber(xv)
@@ -1200,12 +1214,12 @@ func liftBitwise(f func(int64, int64) int64, positiveRightArg bool) func(*interp
 		if err != nil {
 			return nil, err
 		}
-		if x.value < math.MinInt64 || x.value > math.MaxInt64 {
-			msg := fmt.Sprintf("Bitwise operator argument %v outside of range [%v, %v]", x.value, int64(math.MinInt64), int64(math.MaxInt64))
+		if x.value < minSafeIntValue || x.value > maxSafeIntValue {
+			msg := fmt.Sprintf("Bitwise operator argument %v outside of range [%v, %v]", x.value, int64(minSafeIntValue), int64(maxSafeIntValue))
 			return nil, makeRuntimeError(msg, i.getCurrentStackTrace())
 		}
-		if y.value < math.MinInt64 || y.value > math.MaxInt64 {
-			msg := fmt.Sprintf("Bitwise operator argument %v outside of range [%v, %v]", y.value, int64(math.MinInt64), int64(math.MaxInt64))
+		if y.value < minSafeIntValue || y.value > maxSafeIntValue {
+			msg := fmt.Sprintf("Bitwise operator argument %v outside of range [%v, %v]", y.value, int64(minSafeIntValue), int64(maxSafeIntValue))
 			return nil, makeRuntimeError(msg, i.getCurrentStackTrace())
 		}
 		if positiveRightArg && y.value < 0 {
@@ -1588,6 +1602,9 @@ func builtinParseYAML(i *interpreter, str value) (value, error) {
 		elems = append(elems, elem)
 	}
 
+	if len(elems) == 0 {
+		return &nullValue, nil
+	}
 	if d.IsStream() {
 		return jsonToValue(i, elems)
 	}
@@ -1717,7 +1734,10 @@ func tomlAddToPath(path []string, tail string) []string {
 }
 
 // tomlRenderValue returns a rendered value as string, with proper indenting
-func tomlRenderValue(i *interpreter, val value, sindent string, indexedPath []string, inline bool, cindent string) (string, error) {
+func tomlRenderValue(i *interpreter, val value, sindent string, indexedPath []string, inline bool, cindent string, depth int) (string, error) {
+	if depth <= 0 {
+		return "", i.Error("max manifest depth exceeded, possible infinite recursion")
+	}
 	switch v := val.(type) {
 	case *valueNull:
 		return "", i.Error(fmt.Sprintf("Tried to manifest \"null\" at %v", indexedPath))
@@ -1759,7 +1779,7 @@ func tomlRenderValue(i *interpreter, val value, sindent string, indexedPath []st
 			}
 
 			res = res + newIndent
-			value, err := tomlRenderValue(i, thunkValue, sindent, childIndexedPath, true, "")
+			value, err := tomlRenderValue(i, thunkValue, sindent, childIndexedPath, true, "", depth-1)
 			if err != nil {
 				return "", err
 			}
@@ -1790,7 +1810,7 @@ func tomlRenderValue(i *interpreter, val value, sindent string, indexedPath []st
 
 			childIndexedPath := tomlAddToPath(indexedPath, fieldName)
 
-			value, err := tomlRenderValue(i, fieldValue, sindent, childIndexedPath, true, "")
+			value, err := tomlRenderValue(i, fieldValue, sindent, childIndexedPath, true, "", depth-1)
 			if err != nil {
 				return "", err
 			}
@@ -1808,7 +1828,10 @@ func tomlRenderValue(i *interpreter, val value, sindent string, indexedPath []st
 	}
 }
 
-func tomlRenderTableArray(i *interpreter, v *valueArray, sindent string, path []string, indexedPath []string, cindent string) (string, error) {
+func tomlRenderTableArray(i *interpreter, v *valueArray, sindent string, path []string, indexedPath []string, cindent string, depth int) (string, error) {
+	if depth <= 0 {
+		return "", i.Error("max manifest depth exceeded, possible infinite recursion")
+	}
 
 	sections := make([]string, 0, len(v.elements))
 
@@ -1841,7 +1864,7 @@ func tomlRenderTableArray(i *interpreter, v *valueArray, sindent string, path []
 			childIndexedPath := tomlAddToPath(indexedPath, strconv.FormatInt(int64(j), 10))
 
 			// render the table and add it to result
-			table, err := tomlTableInternal(i, tv, sindent, path, childIndexedPath, cindent+sindent)
+			table, err := tomlTableInternal(i, tv, sindent, path, childIndexedPath, cindent+sindent, depth-1)
 			if err != nil {
 				return "", err
 			}
@@ -1857,7 +1880,10 @@ func tomlRenderTableArray(i *interpreter, v *valueArray, sindent string, path []
 	return strings.Join(sections, "\n\n"), nil
 }
 
-func tomlRenderTable(i *interpreter, v *valueObject, sindent string, path []string, indexedPath []string, cindent string) (string, error) {
+func tomlRenderTable(i *interpreter, v *valueObject, sindent string, path []string, indexedPath []string, cindent string, depth int) (string, error) {
+	if depth <= 0 {
+		return "", i.Error("max manifest depth exceeded, possible infinite recursion")
+	}
 	res := cindent + "["
 	for i, element := range path {
 		if i > 0 {
@@ -1870,7 +1896,7 @@ func tomlRenderTable(i *interpreter, v *valueObject, sindent string, path []stri
 		res = res + "\n"
 	}
 
-	table, err := tomlTableInternal(i, v, sindent, path, indexedPath, cindent+sindent)
+	table, err := tomlTableInternal(i, v, sindent, path, indexedPath, cindent+sindent, depth-1)
 	if err != nil {
 		return "", err
 	}
@@ -1879,7 +1905,10 @@ func tomlRenderTable(i *interpreter, v *valueObject, sindent string, path []stri
 	return res, nil
 }
 
-func tomlTableInternal(i *interpreter, v *valueObject, sindent string, path []string, indexedPath []string, cindent string) (string, error) {
+func tomlTableInternal(i *interpreter, v *valueObject, sindent string, path []string, indexedPath []string, cindent string, depth int) (string, error) {
+	if depth <= 0 {
+		return "", i.Error("max manifest depth exceeded, possible infinite recursion")
+	}
 	resFields := []string{}
 	resSections := []string{""}
 	fields := objectFields(v, withoutHidden)
@@ -1906,13 +1935,13 @@ func tomlTableInternal(i *interpreter, v *valueObject, sindent string, path []st
 
 			switch fv := fieldValue.(type) {
 			case *valueObject:
-				section, err := tomlRenderTable(i, fv, sindent, childPath, childIndexedPath, cindent)
+				section, err := tomlRenderTable(i, fv, sindent, childPath, childIndexedPath, cindent, depth-1)
 				if err != nil {
 					return "", err
 				}
 				resSections = append(resSections, section)
 			case *valueArray:
-				section, err := tomlRenderTableArray(i, fv, sindent, childPath, childIndexedPath, cindent)
+				section, err := tomlRenderTableArray(i, fv, sindent, childPath, childIndexedPath, cindent, depth-1)
 				if err != nil {
 					return "", err
 				}
@@ -1923,7 +1952,7 @@ func tomlTableInternal(i *interpreter, v *valueObject, sindent string, path []st
 		} else {
 			// render as value and append to result fields
 
-			renderedValue, err := tomlRenderValue(i, fieldValue, sindent, childIndexedPath, false, "")
+			renderedValue, err := tomlRenderValue(i, fieldValue, sindent, childIndexedPath, false, "", depth-1)
 			if err != nil {
 				return "", err
 			}
@@ -1951,7 +1980,7 @@ func builtinManifestTomlEx(i *interpreter, arguments []value) (value, error) {
 
 	switch v := val.(type) {
 	case *valueObject:
-		res, err := tomlTableInternal(i, v, sindent, []string{}, []string{}, "")
+		res, err := tomlTableInternal(i, v, sindent, []string{}, []string{}, "", i.stack.limit)
 		if err != nil {
 			return nil, err
 		}
@@ -1989,8 +2018,11 @@ func builtinManifestJSONEx(i *interpreter, arguments []value) (value, error) {
 
 	var path []string
 
-	var aux func(ov value, path []string, cindent string) (string, error)
-	aux = func(ov value, path []string, cindent string) (string, error) {
+	var aux func(ov value, path []string, cindent string, depth int) (string, error)
+	aux = func(ov value, path []string, cindent string, depth int) (string, error) {
+		if depth <= 0 {
+			return "", i.Error("max manifest depth exceeded, possible infinite recursion")
+		}
 		if ov == nil {
 			fmt.Println("value is nil")
 			return "null", nil
@@ -2023,7 +2055,7 @@ func builtinManifestJSONEx(i *interpreter, arguments []value) (value, error) {
 				}
 
 				newPath := append(path, strconv.FormatInt(int64(aI), 10))
-				s, err := aux(cTv, newPath, newIndent)
+				s, err := aux(cTv, newPath, newIndent, depth-1)
 				if err != nil {
 					return "", err
 				}
@@ -2051,7 +2083,7 @@ func builtinManifestJSONEx(i *interpreter, arguments []value) (value, error) {
 				}
 
 				newPath := append(path, fieldName)
-				mvs, err := aux(fieldValue, newPath, newIndent)
+				mvs, err := aux(fieldValue, newPath, newIndent, depth-1)
 				if err != nil {
 					return "", err
 				}
@@ -2067,7 +2099,7 @@ func builtinManifestJSONEx(i *interpreter, arguments []value) (value, error) {
 		}
 	}
 
-	finalString, err := aux(val, path, "")
+	finalString, err := aux(val, path, "", i.stack.limit)
 	if err != nil {
 		return nil, err
 	}
@@ -2155,8 +2187,11 @@ func builtinManifestYamlDoc(i *interpreter, arguments []value) (value, error) {
 
 	var buf bytes.Buffer
 
-	var aux func(ov value, buf *bytes.Buffer, cindent string) error
-	aux = func(ov value, buf *bytes.Buffer, cindent string) error {
+	var aux func(ov value, buf *bytes.Buffer, cindent string, depth int) error
+	aux = func(ov value, buf *bytes.Buffer, cindent string, depth int) error {
+		if depth <= 0 {
+			return i.Error("max manifest depth exceeded, possible infinite recursion")
+		}
 		switch v := ov.(type) {
 		case *valueNull:
 			buf.WriteString("null")
@@ -2214,7 +2249,7 @@ func builtinManifestYamlDoc(i *interpreter, arguments []value) (value, error) {
 					cindent = cindent + yamlIndent
 				}
 
-				if err := aux(thunkValue, buf, cindent); err != nil {
+				if err := aux(thunkValue, buf, cindent, depth-1); err != nil {
 					return err
 				}
 				cindent = prevIndent
@@ -2264,14 +2299,16 @@ func builtinManifestYamlDoc(i *interpreter, arguments []value) (value, error) {
 				} else {
 					buf.WriteByte(' ')
 				}
-				aux(fieldValue, buf, cindent)
+				if err := aux(fieldValue, buf, cindent, depth-1); err != nil {
+					return err
+				}
 				cindent = prevIndent
 			}
 		}
 		return nil
 	}
 
-	if err := aux(val, &buf, ""); err != nil {
+	if err := aux(val, &buf, "", i.stack.limit); err != nil {
 		return nil, err
 	}
 
@@ -2485,6 +2522,7 @@ func builtinRemove(i *interpreter, arrv value, ev value) (value, error) {
 }
 
 func builtinRemoveAt(i *interpreter, arrv value, idxv value) (value, error) {
+	var newArr []*cachedThunk
 	arr, err := i.getArray(arrv)
 	if err != nil {
 		return nil, err
@@ -2494,11 +2532,12 @@ func builtinRemoveAt(i *interpreter, arrv value, idxv value) (value, error) {
 		return nil, err
 	}
 
-	newArr := append(arr.elements[:idx], arr.elements[idx+1:]...)
+	newArr = append(newArr, arr.elements[:idx]...)
+	newArr = append(newArr, arr.elements[idx+1:]...)
 	return makeValueArray(newArr), nil
 }
 
-func builtInObjectRemoveKey(i *interpreter, objv value, keyv value) (value, error) {
+func builtinObjectRemoveKey(i *interpreter, objv value, keyv value) (value, error) {
 	obj, err := i.getObject(objv)
 	if err != nil {
 		return nil, err
@@ -2508,29 +2547,14 @@ func builtInObjectRemoveKey(i *interpreter, objv value, keyv value) (value, erro
 		return nil, err
 	}
 
-	newFields := make(simpleObjectFieldMap)
-	simpleObj := obj.uncached.(*simpleObject)
-	for fieldName, fieldVal := range simpleObj.fields {
-		if fieldName == key.getGoString() {
-			// skip the field which needs to be deleted
-			continue
-		}
+	restrictedObj := makeValueRestrictedObject(obj)
+	delete(restrictedObj.uncached.(*restrictedObject).retainedFields, key.getGoString())
+	return restrictedObj, nil
+}
 
-		newFields[fieldName] = simpleObjectField{
-			hide: fieldVal.hide,
-			field: &bindingsUnboundField{
-				inner:    fieldVal.field,
-				bindings: simpleObj.upValues,
-			},
-		}
-	}
-
-	return makeValueSimpleObject(
-		nil,
-		newFields,
-		[]unboundField{}, // No asserts allowed
-		nil,
-	), nil
+func builtinIsNull(i *interpreter, v value) (value, error) {
+	_, isNull := v.(*valueNull)
+	return makeValueBoolean(isNull), nil
 }
 
 // Utils for builtins - TODO(sbarzowski) move to a separate file in another commit
@@ -2823,7 +2847,7 @@ var funcBuiltins = buildBuiltinMap([]builtin{
 	&binaryBuiltin{name: "equals", function: builtinEquals, params: ast.Identifiers{"x", "y"}},
 	&binaryBuiltin{name: "objectFieldsEx", function: builtinObjectFieldsEx, params: ast.Identifiers{"obj", "hidden"}},
 	&ternaryBuiltin{name: "objectHasEx", function: builtinObjectHasEx, params: ast.Identifiers{"obj", "fname", "hidden"}},
-	&binaryBuiltin{name: "objectRemoveKey", function: builtInObjectRemoveKey, params: ast.Identifiers{"obj", "key"}},
+	&binaryBuiltin{name: "objectRemoveKey", function: builtinObjectRemoveKey, params: ast.Identifiers{"obj", "key"}},
 	&unaryBuiltin{name: "type", function: builtinType, params: ast.Identifiers{"x"}},
 	&unaryBuiltin{name: "char", function: builtinChar, params: ast.Identifiers{"n"}},
 	&unaryBuiltin{name: "codepoint", function: builtinCodepoint, params: ast.Identifiers{"str"}},
@@ -2890,6 +2914,7 @@ var funcBuiltins = buildBuiltinMap([]builtin{
 	&unaryBuiltin{name: "sum", function: builtinSum, params: ast.Identifiers{"arr"}},
 	&unaryBuiltin{name: "avg", function: builtinAvg, params: ast.Identifiers{"arr"}},
 	&binaryBuiltin{name: "contains", function: builtinContains, params: ast.Identifiers{"arr", "elem"}},
+	&unaryBuiltin{name: "isNull", function: builtinIsNull, params: ast.Identifiers{"x"}},
 
 	// internal
 	&unaryBuiltin{name: "$objectFlatMerge", function: builtinUglyObjectFlatMerge, params: ast.Identifiers{"x"}},

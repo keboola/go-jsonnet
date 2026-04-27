@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -51,6 +52,7 @@ func usage(o io.Writer) {
 	fmt.Fprintln(o, "                             files")
 	fmt.Fprintln(o, "  -y / --yaml-stream         Write output as a YAML stream of JSON documents")
 	fmt.Fprintln(o, "  -S / --string              Expect a string, manifest as plain text")
+	fmt.Fprintln(o, "  --no-trailing-newline      Do not add a trailing newline to the output")
 	fmt.Fprintln(o, "  -s / --max-stack <n>       Number of allowed stack frames")
 	fmt.Fprintln(o, "  -t / --max-trace <n>       Max length of stack trace before cropping")
 	fmt.Fprintln(o, "  --version                  Print version")
@@ -256,11 +258,19 @@ func processArgs(givenArgs []string, config *config, vm *jsonnet.VM) (processArg
 			config.evalStream = true
 		} else if arg == "-S" || arg == "--string" {
 			vm.StringOutput = true
+		} else if arg == "--no-trailing-newline" {
+			vm.OutputNewline = false
 		} else if len(arg) > 1 && arg[0] == '-' {
 			return processArgsStatusFailure, fmt.Errorf("unrecognized argument: %s", arg)
 		} else {
 			remainingArgs = append(remainingArgs, arg)
 		}
+	}
+
+	// --no-trailing-newline is meaningless when used with --yaml-stream
+	// so we explicitly reject it to prevent people from relying on it.
+	if config.evalStream && !vm.OutputNewline {
+		return processArgsStatusFailure, fmt.Errorf("cannot use --no-trailing-newline with --yaml-stream")
 	}
 
 	want := "filename"
@@ -282,6 +292,48 @@ func processArgs(givenArgs []string, config *config, vm *jsonnet.VM) (processArg
 
 	config.inputFiles = remainingArgs
 	return processArgsStatusContinue, nil
+}
+
+// (*Root) ReadFile() is added in Go 1.25; switch to that in the future.
+func rootReadFile(root *os.Root, name string) ([]byte, error) {
+	f, err := root.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(f)
+}
+
+// (*Root) WriteFile() is added in Go 1.25; switch to that in the future.
+func rootWriteFile(root *os.Root, name string, data []byte, perm os.FileMode) error {
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	_, finalErr := f.Write(data)
+	if err := f.Close(); err != nil {
+		finalErr = err
+	}
+	return finalErr
+}
+
+// (*Root) MkdirAll() is added in Go 1.25; switch to that in the future.
+func rootMkdirAll(root *os.Root, name string, perm os.FileMode) error {
+	var dirs []string
+	rest := name
+	for rest != "." && rest != "/" && rest != "" {
+		dirs = append(dirs, rest)
+		rest = path.Dir(rest)
+	}
+	for i := range dirs {
+		if err := root.Mkdir(dirs[len(dirs)-i-1], perm); err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 func writeMultiOutputFiles(output map[string]string, outputDir, outputFile string, createDirs bool) (err error) {
@@ -311,22 +363,43 @@ func writeMultiOutputFiles(output map[string]string, outputDir, outputFile strin
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
+	if len(keys) == 0 {
+		return nil
+	}
+
+	outputDir = filepath.Clean(outputDir)
+	root, err := os.OpenRoot(outputDir)
+	if err != nil {
+		if os.IsNotExist(err) && createDirs {
+			if err := os.MkdirAll(outputDir, 0755); err != nil {
+				return err
+			}
+			root, err = os.OpenRoot(outputDir)
+		}
+		if err != nil {
+			return err
+		}
+	}
+
 	for _, key := range keys {
 		newContent := output[key]
-		filename := outputDir + key
+		relpath := filepath.Clean(key)
+		if filepath.IsAbs(key) {
+			relpath, err = filepath.Rel("/", key)
+			if err != nil {
+				return err
+			}
+		}
+		abspath := filepath.Join(outputDir, relpath)
 
-		_, err := manifest.WriteString(filename)
+		_, err := manifest.WriteString(abspath + "\n")
 		if err != nil {
 			return err
 		}
 
-		_, err = manifest.WriteString("\n")
-		if err != nil {
-			return err
-		}
-
-		if _, err := os.Stat(filename); !os.IsNotExist(err) {
-			existingContent, err := os.ReadFile(filename)
+		if _, err := root.Stat(relpath); !os.IsNotExist(err) {
+			existingContent, err := rootReadFile(root, relpath)
 			if err != nil {
 				return err
 			}
@@ -338,12 +411,12 @@ func writeMultiOutputFiles(output map[string]string, outputDir, outputFile strin
 			}
 		}
 		if createDirs {
-			if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+			if err := rootMkdirAll(root, filepath.Dir(relpath), 0755); err != nil {
 				return err
 			}
 		}
 
-		err = os.WriteFile(filename, []byte(newContent), 0666)
+		err = rootWriteFile(root, relpath, []byte(newContent), 0666)
 		if err != nil {
 			return err
 		}

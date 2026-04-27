@@ -1,20 +1,20 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
-    name = "go_default_library",
+    name = "jsonnet-lint_lib",
     srcs = ["cmd.go"],
     importpath = "github.com/google/go-jsonnet/cmd/jsonnet-lint",
     visibility = ["//visibility:private"],
     deps = [
-        "//:go_default_library",
-        "//cmd/internal/cmd:go_default_library",
-        "//linter:go_default_library",
-        "@com_github_fatih_color//:go_default_library",
+        "//:go-jsonnet",
+        "//cmd/internal/cmd",
+        "//linter",
+        "@com_github_fatih_color//:color",
     ],
 )
 
 go_binary(
     name = "jsonnet-lint",
-    embed = [":go_default_library"],
+    embed = [":jsonnet-lint_lib"],
     visibility = ["//visibility:public"],
 )

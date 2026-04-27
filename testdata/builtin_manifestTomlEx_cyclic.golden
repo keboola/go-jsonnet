@@ -1,0 +1,10 @@
+RUNTIME ERROR: max manifest depth exceeded, possible infinite recursion
+-------------------------------------------------
+	testdata/builtin_manifestTomlEx_cyclic:1:1-37	$
+
+std.manifestTomlEx({a: {b: $}}, " ")
+
+-------------------------------------------------
+	During evaluation	
+
+

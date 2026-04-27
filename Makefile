@@ -57,7 +57,7 @@ generate.stdlib:
 tidy:
 	go mod tidy
     # doesn't work in the forked repository
-	# bazel run //:gazelle -- update-repos -from_file=go.mod -to_macro=bazel/deps.bzl%jsonnet_go_dependencies
+	# bazel run //:gazelle -- update
 .PHONY: tidy
 
 gazelle:

@@ -941,7 +941,7 @@ func (i *interpreter) manifestString(buf *bytes.Buffer, v value) error {
 	}
 }
 
-func (i *interpreter) manifestAndSerializeMulti(v value, stringOutputMode bool) (r map[string]string, err error) {
+func (i *interpreter) manifestAndSerializeMulti(v value, stringOutputMode bool, outputNewline bool) (r map[string]string, err error) {
 	r = make(map[string]string)
 	json, err := i.manifestJSON(v)
 	if err != nil {
@@ -950,21 +950,23 @@ func (i *interpreter) manifestAndSerializeMulti(v value, stringOutputMode bool) 
 	switch json := json.(type) {
 	case map[string]interface{}:
 		for filename, fileJSON := range json {
+			var buf bytes.Buffer
 			if stringOutputMode {
 				switch val := fileJSON.(type) {
 				case string:
-					r[filename] = val
+					buf.WriteString(val)
 				default:
 					msg := fmt.Sprintf("multi mode: top-level object's key %s has a value of type %T, "+
 						"should be a string", filename, val)
 					return r, makeRuntimeError(msg, i.getCurrentStackTrace())
 				}
 			} else {
-				var buf bytes.Buffer
 				serializeJSON(fileJSON, true, "", &buf)
-				buf.WriteString("\n")
-				r[filename] = buf.String()
 			}
+			if outputNewline {
+				buf.WriteString("\n")
+			}
+			r[filename] = buf.String()
 		}
 	default:
 		msg := fmt.Sprintf("multi mode: top-level object was a %s, "+
@@ -1403,7 +1405,7 @@ func evaluateAux(i *interpreter, node ast.Node, tla vmExtMap) (value, error) {
 	return result, nil
 }
 
-func evaluate(i *interpreter, node ast.Node, tla vmExtMap, stringOutputMode bool) (string, error) {
+func evaluate(i *interpreter, node ast.Node, tla vmExtMap, stringOutputMode bool, outputNewline bool) (string, error) {
 	result, err := evaluateAux(i, node, tla)
 	if err != nil {
 		return "", err
@@ -1420,18 +1422,20 @@ func evaluate(i *interpreter, node ast.Node, tla vmExtMap, stringOutputMode bool
 	if err != nil {
 		return "", err
 	}
-	buf.WriteString("\n")
+	if outputNewline {
+		buf.WriteString("\n")
+	}
 	return buf.String(), nil
 }
 
-func evaluateMulti(i *interpreter, node ast.Node, tla vmExtMap, stringOutputMode bool) (map[string]string, error) {
+func evaluateMulti(i *interpreter, node ast.Node, tla vmExtMap, stringOutputMode bool, outputNewline bool) (map[string]string, error) {
 	result, err := evaluateAux(i, node, tla)
 	if err != nil {
 		return nil, err
 	}
 
 	i.stack.setCurrentTrace(manifestationTrace())
-	manifested, err := i.manifestAndSerializeMulti(result, stringOutputMode)
+	manifested, err := i.manifestAndSerializeMulti(result, stringOutputMode, outputNewline)
 	i.stack.clearCurrentTrace()
 	return manifested, err
 }

@@ -13,6 +13,7 @@ go_library(
 
 go_binary(
     name = "use_go_jsonnet",
+    data = ["example.jsonnet"],
     embed = [":use_go_jsonnet_lib"],
     visibility = ["//visibility:public"],
 )

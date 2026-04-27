@@ -61,7 +61,7 @@ func (i *importer) Import(importedFrom, importedPath string) (contents jsonnet.C
 	var (
 		buflen     = C.size_t(0)
 		msgC       *C.char
-		bufPtr       unsafe.Pointer
+		bufPtr     unsafe.Pointer
 		dir, _     = path.Split(importedFrom)
 		foundHereC *C.char
 	)
@@ -84,7 +84,6 @@ func (i *importer) Import(importedFrom, importedPath string) (contents jsonnet.C
 
 	foundHere := C.GoString(foundHereC)
 	C.jsonnet_internal_free_string(foundHereC)
-
 
 	if _, isCached := i.contentCache[foundHere]; !isCached {
 		i.contentCache[foundHere] = jsonnet.MakeContentsRaw(result)
@@ -654,7 +653,7 @@ func (o *traceOut) Write(p []byte) (int, error) {
 
 	success := C.int(0)
 	var n C.int = C.jsonnet_internal_execute_writer(o.cb, unsafe.Pointer(&p[0]),
-				                                    C.size_t(len(p)), &success)
+		C.size_t(len(p)), &success)
 	if success != 1 {
 		return int(n), errors.New("std.trace() failed to write to output stream")
 	}
@@ -671,7 +670,6 @@ func jsonnet_set_trace_out_callback(vmRef *C.struct_JsonnetVm, cb *C.JsonnetIoWr
 func jsonnet_realloc(vmRef *C.struct_JsonnetVm, buf *C.char, sz C.size_t) *C.char {
 	return C.jsonnet_internal_realloc(vmRef, buf, sz)
 }
-
 
 func main() {
 }
